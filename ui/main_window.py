@@ -243,6 +243,7 @@ class MainWindow(QMainWindow):
         content_lay = QHBoxLayout(content)
         content_lay.setContentsMargins(10, 8, 10, 6)
         content_lay.setSpacing(6)
+        self._content_lay = content_lay
         controls = self._build_controls_panel()
         controls.setFixedWidth(280)
         content_lay.addWidget(controls)
@@ -659,15 +660,18 @@ class MainWindow(QMainWindow):
         if collapsed:
             self.collapse_btn.setText("\uE76C")   # chevron right: click to open
             self.collapse_btn.setToolTip("Show the test & activity section")
-            # Exact fit so the arrow's right-side gap equals the window's
-            # left margin: 10 + 280 sidebar + 6 spacing + 16 strip + 10
+            # Symmetric arrow: right margin drops to the layout spacing
+            # (6px) so the gap on each side of the arrow is identical.
+            # Exact fit: 10 + 280 sidebar + 6 + 16 strip + 6 = 318
+            self._content_lay.setContentsMargins(10, 8, 6, 6)
             if not self.isMaximized():
                 self._expanded_width = self.width()
-                self.setMinimumSize(322, 640)
-                self.resize(322, self.height())
+                self.setMinimumSize(318, 640)
+                self.resize(318, self.height())
         else:
             self.collapse_btn.setText("\uE76B")   # chevron left: click to close
             self.collapse_btn.setToolTip("Hide the test & activity section")
+            self._content_lay.setContentsMargins(10, 8, 10, 6)
             self.setMinimumSize(1000, 640)
             if not self.isMaximized():
                 self.resize(max(getattr(self, "_expanded_width", 1120),
