@@ -64,10 +64,8 @@ jobs:
       - name: Package portable archive
         shell: pwsh
         run: |
-          New-Item -ItemType Directory package | Out-Null
-          Copy-Item dist\XMacro-peater.exe package\
-          Copy-Item README.md, LICENSE package\
-          Compress-Archive -Path package\* -DestinationPath "XMacro-peater-${{ github.ref_name }}-win64-portable.zip"
+          Copy-Item README.md, LICENSE dist\XMacro-peater\
+          Compress-Archive -Path dist\XMacro-peater -DestinationPath "XMacro-peater-${{ github.ref_name }}-win64-portable.zip"
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

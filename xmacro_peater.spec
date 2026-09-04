@@ -22,12 +22,15 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+# One-DIR on purpose: one-file bootloaders are the most heuristic-flagged
+# binary format around (self-extracting stub), while a plain app folder
+# passes AV/SmartScreen far cleaner and starts faster. The installer ships
+# the folder; the portable zip contains it.
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="XMacro-peater",
     debug=False,
     strip=False,
@@ -35,4 +38,13 @@ exe = EXE(
     console=False,
     icon="assets/xmacro.ico",
     version="version_info.txt",
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="XMacro-peater",
 )
