@@ -121,7 +121,7 @@ class MiniOverlay(QWidget):
         self.play_btn.clicked.connect(self.play_clicked.emit)
         self.stop_btn = self._mini_btn("", "Stop playback (Ctrl+F11)")
         self.stop_btn.clicked.connect(self.stop_clicked.emit)
-        self.expand_btn = self._mini_btn("", "Back to the full window")
+        self.expand_btn = self._mini_btn("\uE740", "Back to the full window")
         self.expand_btn.clicked.connect(self.expand_clicked.emit)
         for b in (self.rec_btn, self.play_btn, self.stop_btn,
                   self.expand_btn):

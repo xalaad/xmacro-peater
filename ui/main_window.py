@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
         self.settings_btn = title_icon("", "Settings",
                                        self._open_settings)
         self.mini_btn = title_icon(
-            "", "Mini overlay — shrink to a small always-on-top "
+            "\uE73F", "Mini overlay — shrink to a small always-on-top "
             "HUD for use over a game", self._enter_mini)
         self.pill = StatusPill(self.theme)
         self.titlebar.add_widget(self.settings_btn, spacing=2)
