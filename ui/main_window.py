@@ -573,11 +573,6 @@ class MainWindow(QMainWindow):
         self.loop_count.valueChanged.connect(
             mirror_spin(self.overlay.loop_count))
 
-    def changeEvent(self, event) -> None:
-        if event.type() == event.Type.WindowStateChange:
-            self.titlebar.update_max_button(self.isMaximized())
-        super().changeEvent(event)
-
     def eventFilter(self, obj, event) -> bool:
         if (obj is self.rec_list.viewport()
                 and event.type() == event.Type.Resize):

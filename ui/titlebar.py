@@ -47,7 +47,6 @@ class TitleBar(QWidget):
         self._win_buttons: list[QPushButton] = []
         for glyph, tip, handler, danger in (
             ("", "Minimize", self._minimize, False),
-            ("", "Maximize", self._toggle_max, False),
             ("", "Close", self._close, True),
         ):
             btn = QPushButton(glyph)
@@ -58,15 +57,10 @@ class TitleBar(QWidget):
             btn.clicked.connect(handler)
             lay.addWidget(btn)
             self._win_buttons.append(btn)
-        self.max_btn = self._win_buttons[1]
 
     def set_compact(self, compact: bool) -> None:
         """Sidebar-only mode: hide the title text, keep the logo."""
         self.title.setVisible(not compact)
-
-    def update_max_button(self, maximized: bool) -> None:
-        self.max_btn.setText("" if maximized else "")
-        self.max_btn.setToolTip("Restore" if maximized else "Maximize")
 
     def add_widget(self, widget: QWidget, spacing: int = 0) -> None:
         lay = self.layout()
@@ -85,18 +79,8 @@ class TitleBar(QWidget):
     def _minimize(self) -> None:
         self.window().showMinimized()
 
-    def _toggle_max(self) -> None:
-        win = self.window()
-        if win.isMaximized():
-            win.showNormal()
-        else:
-            win.showMaximized()
-
     def _close(self) -> None:
         self.window().close()
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        self._toggle_max()
 
     def set_theme(self, theme: Theme) -> None:
         self.theme = theme
