@@ -29,6 +29,7 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFrame,
@@ -56,6 +57,7 @@ from core.hotkeys import (
     parse_combo,
 )
 from core.playback.engine import INFINITE, PlaybackEngine
+from core.playback.touch import touch_device_present
 from core.playback.virtual_output import (
     ensure_vgamepad,
     launch_vigem_installer,
@@ -280,6 +282,23 @@ class MainWindow(QMainWindow):
         hint.setWordWrap(True)
         self._hint_label = hint
         lay.addWidget(hint)
+
+        # Touch mode toggle — shown when a touchscreen is detected (or the
+        # mode is already on), so activation is obvious, never automatic:
+        # games need the default relative-delta recording.
+        self.touch_toggle = QCheckBox("Touch mode — record taps && swipes")
+        self.touch_toggle.setToolTip(
+            "ON: taps, drags and swipes record as absolute gestures and "
+            "replay as genuine Windows touch — for touchscreen apps and "
+            "UI automation.\nOFF (default): relative mouse recording — "
+            "what games need for camera look.\nApplies to the next "
+            "recording; also in Settings."
+        )
+        self.touch_toggle.setChecked(self.cfg.touch_mode)
+        self.touch_toggle.toggled.connect(self._on_touch_toggled)
+        self.touch_toggle.setVisible(
+            touch_device_present() or self.cfg.touch_mode)
+        lay.addWidget(self.touch_toggle)
 
         # --- Playback plan: inputs appear/disappear per selected mode ---
         loop_row = QHBoxLayout()
@@ -882,7 +901,9 @@ class MainWindow(QMainWindow):
             self._set_state(RECORDING)
             self.record_btn.setText("■  Stop Recording")
             self.play_btn.setEnabled(False)
-            self._log("Recording started…", self.theme.danger)
+            self._log("Recording started (TOUCH mode — gestures)…"
+                      if self.cfg.touch_mode else "Recording started…",
+                      self.theme.danger)
         else:
             macro = self.recorder.stop()
             drift = self.recorder.drift_stats()
@@ -916,10 +937,10 @@ class MainWindow(QMainWindow):
                             and e.data["action"] == "move")
                 ups = sum(1 for e in macro.events if e.src == "touch"
                           and e.data["action"] == "up")
-                self.activity.add_line(
-                    f"[touch diag] contacts {downs}↓/{ups}↑ · "
-                    f"{moves} path points",
-                    QColor(self.theme.accent2))
+                self._log(
+                    f"[touch] captured {downs} taps/contacts · "
+                    f"{moves} path points ({ups} lifts)",
+                    self.theme.accent2)
             for src, line in drift.items():
                 self.stats.setText(f"Poll drift ({src}): {line}")
 
@@ -1107,6 +1128,15 @@ class MainWindow(QMainWindow):
         self.cfg.log_motion = checked
         save_config(self.cfg)
 
+    def _on_touch_toggled(self, checked: bool) -> None:
+        self.cfg.touch_mode = checked
+        save_config(self.cfg)
+        self._log(
+            "Touch mode ON — next recording captures taps/drags/swipes "
+            "as gestures." if checked else
+            "Touch mode OFF — next recording uses relative mouse deltas.",
+            self.theme.accent2 if checked else self.theme.text_dim)
+
     def _on_delay_edited(self, *_) -> None:
         """Both delays live-save to config so Settings and the main screen
         always agree."""
@@ -1210,6 +1240,11 @@ class MainWindow(QMainWindow):
         self.overlay.set_hints(
             self._hotkey_hint_text() if self.cfg.overlay.show_hints else "")
         sounds.enabled = self.cfg.sounds
+        self.touch_toggle.blockSignals(True)
+        self.touch_toggle.setChecked(self.cfg.touch_mode)
+        self.touch_toggle.blockSignals(False)
+        self.touch_toggle.setVisible(
+            touch_device_present() or self.cfg.touch_mode)
         if self.hotkeys is not None:
             self._bind_hotkeys()
 
@@ -1232,8 +1267,9 @@ class MainWindow(QMainWindow):
 
         # Overlay status line (cheap; overlay may be the only thing visible)
         if self.recorder is not None and self.recorder.is_recording:
+            touch_tag = "touch · " if self.recorder.touch_mode else ""
             self.overlay.set_info(
-                f"{self.recorder.elapsed:.0f}s · "
+                f"{touch_tag}{self.recorder.elapsed:.0f}s · "
                 f"{self.recorder.event_count} events")
         elif self._playback_active and self._run_info:
             self.overlay.set_info(self._run_info)

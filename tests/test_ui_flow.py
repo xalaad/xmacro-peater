@@ -125,6 +125,16 @@ def test_overlay_loop_controls_sync(window):
     win.loop_mode.setCurrentIndex(0)
 
 
+def test_touch_toggle_syncs_config_and_recorder(window):
+    win = window
+    win.touch_toggle.setChecked(True)
+    assert win.cfg.touch_mode is True
+    rec = win.build_recorder(lambda ev: None)
+    assert rec.touch_mode is True
+    win.touch_toggle.setChecked(False)
+    assert win.cfg.touch_mode is False
+
+
 # ---------------------------------------------------------------- guards
 def test_record_blocked_during_simulation(window):
     win = window

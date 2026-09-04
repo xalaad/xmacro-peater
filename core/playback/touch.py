@@ -65,6 +65,14 @@ else:  # pragma: no cover
     _HAS_API = False
 
 
+def touch_device_present() -> bool:
+    """True when the machine has a touch digitizer (touchscreen)."""
+    if sys.platform != "win32":
+        return False
+    SM_MAXIMUMTOUCHES = 95
+    return ctypes.windll.user32.GetSystemMetrics(SM_MAXIMUMTOUCHES) > 0
+
+
 class TouchInjector:
     """Single-contact touch injection. One instance per playback run."""
 
