@@ -19,11 +19,10 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QSize, Qt, QTimer
+from PySide6.QtCore import QPoint, QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import (
     QCloseEvent,
     QColor,
-    QCursor,
     QGuiApplication,
     QIcon,
     QPainter,
@@ -546,7 +545,16 @@ class MainWindow(QMainWindow):
             return super().nativeEvent(event_type, message)
         msg = ctypes.wintypes.MSG.from_address(int(message))
         if msg.message == 0x0084:  # WM_NCHITTEST
-            pos = self.mapFromGlobal(QCursor.pos())
+            # Use the coordinates from the message itself — for TOUCH the
+            # cursor hasn't moved yet at hit-test time, so QCursor.pos()
+            # is stale and taps get misrouted (buttons wouldn't respond).
+            sx = ctypes.c_short(msg.lParam & 0xFFFF).value
+            sy = ctypes.c_short((msg.lParam >> 16) & 0xFFFF).value
+            pt = ctypes.wintypes.POINT(sx, sy)
+            ctypes.windll.user32.ScreenToClient(int(self.winId()),
+                                                ctypes.byref(pt))
+            dpr = self.devicePixelRatioF() or 1.0
+            pos = QPoint(int(pt.x / dpr), int(pt.y / dpr))
             w, h = self.width(), self.height()
             m = 6
             if not self.isMaximized():
@@ -899,6 +907,19 @@ class MainWindow(QMainWindow):
             else:
                 self._log("Recording stopped — no events captured.",
                           self.theme.warning)
+            if self.cfg.touch_mode:
+                # Diagnostic: exactly what touch capture saw, so gesture
+                # problems on real touchscreens can be reported precisely
+                downs = sum(1 for e in macro.events if e.src == "touch"
+                            and e.data["action"] == "down")
+                moves = sum(1 for e in macro.events if e.src == "touch"
+                            and e.data["action"] == "move")
+                ups = sum(1 for e in macro.events if e.src == "touch"
+                          and e.data["action"] == "up")
+                self.activity.add_line(
+                    f"[touch diag] contacts {downs}↓/{ups}↑ · "
+                    f"{moves} path points",
+                    QColor(self.theme.accent2))
             for src, line in drift.items():
                 self.stats.setText(f"Poll drift ({src}): {line}")
 

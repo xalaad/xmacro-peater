@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -13,10 +14,13 @@ log = logging.getLogger(__name__)
 APP_VERSION = "1.0"
 
 if getattr(sys, "frozen", False):
-    # PyInstaller: keep user-facing dirs next to the exe, not the temp
-    # extraction dir, so config/recordings survive between launches.
-    APP_DIR = Path(sys.executable).resolve().parent
-    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
+    # PyInstaller: the exe usually lives in Program Files, which is
+    # read-only for normal users — user data (config/logs/recordings)
+    # goes to %LOCALAPPDATA%\XMacro-peater instead.
+    APP_DIR = Path(os.environ.get("LOCALAPPDATA",
+                                  str(Path.home()))) / "XMacro-peater"
+    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS",
+                              Path(sys.executable).resolve().parent))
 else:
     APP_DIR = Path(__file__).resolve().parent.parent
     BUNDLE_DIR = APP_DIR

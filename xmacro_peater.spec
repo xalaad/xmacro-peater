@@ -34,4 +34,5 @@ exe = EXE(
     upx=False,
     console=False,
     icon="assets/xmacro.ico",
+    version="version_info.txt",
 )
