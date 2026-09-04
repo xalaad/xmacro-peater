@@ -128,13 +128,11 @@ QPushButton#accentBtn:hover {{
 }}
 
 QPushButton#collapseStrip {{
-    background: {t.surface}; border: none; border-radius: 6px;
+    background: transparent; border: none;
     color: {t.text_dim}; padding: 0;
-    font-family: {MDL2}; font-size: 9px;
+    font-family: {MDL2}; font-size: 10px;
 }}
-QPushButton#collapseStrip:hover {{
-    background: {t.surface2}; color: {t.accent};
-}}
+QPushButton#collapseStrip:hover {{ color: {t.accent}; }}
 
 QPushButton#linkBtn {{
     background: {t.surface2}; color: {t.text_dim};

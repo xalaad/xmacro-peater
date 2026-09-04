@@ -664,10 +664,12 @@ class MainWindow(QMainWindow):
         if collapsed:
             self.collapse_btn.setText("\uE76C")   # chevron right: click to open
             self.collapse_btn.setToolTip("Show the test & activity section")
+            # Exact fit so the arrow's right-side gap equals the window's
+            # left margin: 10 + 280 sidebar + 6 spacing + 16 strip + 10
             if not self.isMaximized():
                 self._expanded_width = self.width()
-                self.setMinimumSize(348, 640)
-                self.resize(348, self.height())
+                self.setMinimumSize(322, 640)
+                self.resize(322, self.height())
         else:
             self.collapse_btn.setText("\uE76B")   # chevron left: click to close
             self.collapse_btn.setToolTip("Hide the test & activity section")
