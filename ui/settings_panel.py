@@ -174,16 +174,6 @@ class SettingsDialog(FramelessDialog):
             "what's recorded. 8% suits most pads.",
         )
 
-        self.touch_mode = QCheckBox("Touch mode")
-        self.touch_mode.setChecked(cfg.touch_mode)
-        self.touch_mode.toggled.connect(self._apply)
-        self.touch_mode.setToolTip(_rich(
-            "Record taps, drags and swipes as absolute on-screen gestures "
-            "and replay them as genuine Windows touch input. Best for "
-            "touchscreen apps and UI automation. Leave OFF for games — "
-            "they need the default relative mouse deltas for camera look."))
-        s.addWidget(self.touch_mode)
-
         self.trig_dz = QSlider(Qt.Orientation.Horizontal)
         self.trig_dz.setRange(0, 30)
         self.trig_dz.setValue(int(cfg.trigger_deadzone * 100))
@@ -194,6 +184,16 @@ class SettingsDialog(FramelessDialog):
             "Same idea for the analog triggers: pressure below this level "
             "records as fully released.",
         )
+
+        self.touch_mode = QCheckBox("Touch mode")
+        self.touch_mode.setChecked(cfg.touch_mode)
+        self.touch_mode.toggled.connect(self._apply)
+        self.touch_mode.setToolTip(_rich(
+            "Record taps, drags and swipes as absolute on-screen gestures "
+            "and replay them as genuine Windows touch input. Best for "
+            "touchscreen apps and UI automation. Leave OFF for games — "
+            "they need the default relative mouse deltas for camera look."))
+        s.addWidget(self.touch_mode)
 
     def _build_playback_section(self) -> None:
         s = self._section("Playback")

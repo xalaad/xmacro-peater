@@ -60,6 +60,10 @@ class TitleBar(QWidget):
             self._win_buttons.append(btn)
         self.max_btn = self._win_buttons[1]
 
+    def set_compact(self, compact: bool) -> None:
+        """Sidebar-only mode: hide the title text, keep the logo."""
+        self.title.setVisible(not compact)
+
     def update_max_button(self, maximized: bool) -> None:
         self.max_btn.setText("" if maximized else "")
         self.max_btn.setToolTip("Restore" if maximized else "Maximize")

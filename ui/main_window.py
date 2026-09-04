@@ -166,6 +166,11 @@ class MainWindow(QMainWindow):
         self._build_overlay()
         self.tester_window = TesterWindow(self.theme, self)
         self._restore_geometry()
+        # Sidebar-only is the default: compact actions + recordings, with
+        # the test/activity section one arrow-click away
+        if QSettings("MacroSuite", "InputMacroSuite").value(
+                "right_collapsed", True, type=bool):
+            self._toggle_right_panel(force_collapsed=True)
         self._select_scheme(cfg.controller_scheme)
         self._autodetect_controller()
         self._refresh_recordings()
@@ -208,36 +213,56 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Custom chrome
+        # Custom chrome: [logo][title] then gear · mini · status, directly
+        # beside the title (icon-only, MDL2 glyphs, primary-colored)
         self.titlebar = TitleBar(self.cfg.branding.app_name, self.theme)
-        self.pill = StatusPill(self.theme)
-        self.titlebar.add_widget(self.pill)
-        self.tester_btn = QPushButton("Tester")
-        self.tester_btn.setToolTip(
-            "Fullscreen tester: dry-run recordings or capture quick takes")
-        self.tester_btn.clicked.connect(self._open_tester)
-        self.mini_btn = QPushButton("Mini")
-        self.mini_btn.setToolTip(
-            "Shrink to a small always-on-top overlay for use over a game")
-        self.mini_btn.clicked.connect(self._enter_mini)
-        self.settings_btn = QPushButton("Settings")
-        self.settings_btn.clicked.connect(self._open_settings)
-        for b in (self.tester_btn, self.mini_btn, self.settings_btn):
+
+        def title_icon(glyph: str, tip: str, handler) -> QPushButton:
+            b = QPushButton(glyph)
+            b.setObjectName("titleIconBtn")
+            b.setFixedSize(30, 28)
+            b.setToolTip(tip)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            self.titlebar.add_stretch_widget(b)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.clicked.connect(handler)
+            return b
+
+        self.settings_btn = title_icon("", "Settings",
+                                       self._open_settings)
+        self.mini_btn = title_icon(
+            "", "Mini overlay — shrink to a small always-on-top "
+            "HUD for use over a game", self._enter_mini)
+        self.pill = StatusPill(self.theme)
+        self.titlebar.add_widget(self.settings_btn, spacing=2)
+        self.titlebar.add_widget(self.mini_btn, spacing=6)
+        self.titlebar.add_widget(self.pill)
         root.addWidget(self.titlebar)
 
-        # Content: fixed proportional layout (no draggable splitters)
+        # Content: sidebar | collapse strip | right section
         content = QWidget()
         content_lay = QHBoxLayout(content)
         content_lay.setContentsMargins(10, 8, 10, 6)
-        content_lay.setSpacing(8)
+        content_lay.setSpacing(6)
         controls = self._build_controls_panel()
         controls.setFixedWidth(280)
         content_lay.addWidget(controls)
 
-        right = QWidget()
-        right_lay = QVBoxLayout(right)
+        # Full-height arrow strip: ◀ open (click to collapse the right
+        # section), ▶ collapsed (sidebar-only; click to expand)
+        self.collapse_btn = QPushButton("")
+        self.collapse_btn.setObjectName("collapseStrip")
+        self.collapse_btn.setFixedWidth(16)
+        self.collapse_btn.setToolTip("Hide the test & activity section")
+        self.collapse_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.collapse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        # NOTE: clicked(bool) would feed its checked-arg into
+        # force_collapsed — always pass none so it truly toggles
+        self.collapse_btn.clicked.connect(
+            lambda _=False: self._toggle_right_panel())
+        content_lay.addWidget(self.collapse_btn)
+
+        self._right_panel = QWidget()
+        right_lay = QVBoxLayout(self._right_panel)
         right_lay.setContentsMargins(0, 0, 0, 0)
         right_lay.setSpacing(8)
         right_lay.addWidget(self._build_test_tabs(), 3)
@@ -246,7 +271,7 @@ class MainWindow(QMainWindow):
         self.activity.verbose.toggled.connect(self._on_motion_toggled)
         enable_smooth_scroll(self.activity.list)
         right_lay.addWidget(self.activity, 1)
-        content_lay.addWidget(right, 1)
+        content_lay.addWidget(self._right_panel, 1)
         root.addWidget(content, 1)
 
         self.footer = FooterBar(self.cfg, self.theme)
@@ -405,6 +430,15 @@ class MainWindow(QMainWindow):
         header.addSpacing(8)
         header.addWidget(note)
         header.addStretch(1)
+        tester_btn = QPushButton("\uE90F  TEST MODE")
+        tester_btn.setObjectName("accentBtn")
+        tester_btn.setToolTip(
+            "Fullscreen live test: every device edge-to-edge, presets, "
+            "temp recording and replay")
+        tester_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        tester_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        tester_btn.clicked.connect(self._open_tester)
+        header.addWidget(tester_btn)
         lay.addLayout(header)
 
         self.tabs = QTabWidget()
@@ -618,6 +652,31 @@ class MainWindow(QMainWindow):
                 mmi.ptMinTrackSize.y = int(self.minimumHeight() * dpr)
                 return True, 0
         return super().nativeEvent(event_type, message)
+
+    def _toggle_right_panel(self, force_collapsed: bool | None = None) -> None:
+        """Sidebar-only mode: hide the whole test/activity section, keep
+        actions + recordings; the title text hides too (logo stays)."""
+        collapsed = (not getattr(self, "_right_collapsed", False)
+                     if force_collapsed is None else force_collapsed)
+        self._right_collapsed = collapsed
+        self._right_panel.setVisible(not collapsed)
+        self.titlebar.set_compact(collapsed)
+        if collapsed:
+            self.collapse_btn.setText("\uE76C")   # chevron right: click to open
+            self.collapse_btn.setToolTip("Show the test & activity section")
+            if not self.isMaximized():
+                self._expanded_width = self.width()
+                self.setMinimumSize(348, 640)
+                self.resize(348, self.height())
+        else:
+            self.collapse_btn.setText("\uE76B")   # chevron left: click to close
+            self.collapse_btn.setToolTip("Hide the test & activity section")
+            self.setMinimumSize(1000, 640)
+            if not self.isMaximized():
+                self.resize(max(getattr(self, "_expanded_width", 1120),
+                                1000), self.height())
+        QSettings("MacroSuite", "InputMacroSuite").setValue(
+            "right_collapsed", collapsed)
 
     def _open_tester(self) -> None:
         self.tester_window.open()

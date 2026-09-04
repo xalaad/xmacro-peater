@@ -1,12 +1,20 @@
-"""Animated status pill: Idle / Recording / Playing with a glowing dot.
+"""Status icon: Idle / Recording / Playing as glyph shapes with a glowing,
+breathing halo while active — compact enough to live in the title bar.
 
-Color cross-fades between states; while Recording or Playing the glow
-breathes with a looping pulse animation.
+Idle      → hollow ring (dim)
+Recording → filled dot (danger red), pulsing glow
+Playing   → play triangle (success green), pulsing glow
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QEasingCurve, QPointF, QPropertyAnimation, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtCore import (
+    Property,
+    QEasingCurve,
+    QPointF,
+    QPropertyAnimation,
+    Qt,
+)
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 from ..animations import animate_color
@@ -22,7 +30,8 @@ class StatusPill(QWidget):
         self._state = IDLE
         self._color = QColor(theme.text_dim)
         self._pulse = 0.0
-        self.setFixedSize(132, 34)
+        self.setFixedSize(34, 34)
+        self.setToolTip(IDLE)
 
         self._pulse_anim = QPropertyAnimation(self, b"pulse", self)
         self._pulse_anim.setDuration(1100)
@@ -46,6 +55,7 @@ class StatusPill(QWidget):
         if state == self._state and not force:
             return
         self._state = state
+        self.setToolTip(state)
         animate_color(self, QColor(self._color), self._state_color(state),
                       self._set_color, duration_ms=300)
         if state in (RECORDING, PLAYING):
@@ -71,28 +81,31 @@ class StatusPill(QWidget):
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        rect = self.rect().adjusted(1, 1, -1, -1)
+        center = QPointF(self.width() / 2, self.height() / 2)
 
-        bg = QColor(self.theme.surface2)
-        p.setPen(QPen(QColor(self.theme.border), 1))
-        p.setBrush(bg)
-        p.drawRoundedRect(rect, rect.height() / 2, rect.height() / 2)
+        # Breathing halo while active
+        if self._state in (RECORDING, PLAYING):
+            halo = QColor(self._color)
+            halo.setAlphaF(0.20 + 0.25 * self._pulse)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(halo)
+            r = 11.0 + 4.0 * self._pulse
+            p.drawEllipse(center, r, r)
 
-        # Glowing dot: pulse widens a translucent halo, perfectly
-        # concentric with the dot (float-precision centers, no int snap)
-        center = QPointF(20.0, self.height() / 2.0)
-        halo = QColor(self._color)
-        halo.setAlphaF(0.25 + 0.3 * self._pulse)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(halo)
-        p.drawEllipse(center, 6.5 + 2.5 * self._pulse, 6.5 + 2.5 * self._pulse)
-        p.setBrush(self._color)
-        p.drawEllipse(center, 4.0, 4.0)
-
-        p.setPen(QColor(self.theme.text))
-        f = p.font()
-        f.setBold(True)
-        p.setFont(f)
-        p.drawText(rect.adjusted(34, 0, -8, 0),
-                   Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                   self._state)
+        if self._state == RECORDING:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(self._color)
+            p.drawEllipse(center, 6.5, 6.5)
+        elif self._state == PLAYING:
+            path = QPainterPath()
+            path.moveTo(center.x() - 4.5, center.y() - 6.5)
+            path.lineTo(center.x() + 6.5, center.y())
+            path.lineTo(center.x() - 4.5, center.y() + 6.5)
+            path.closeSubpath()
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(self._color)
+            p.drawPath(path)
+        else:  # Idle: hollow ring
+            p.setPen(QPen(self._color, 2))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(center, 5.5, 5.5)

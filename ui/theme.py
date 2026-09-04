@@ -107,6 +107,35 @@ QPushButton#rowBtn {{
 }}
 QPushButton#rowBtn:hover {{ background: {t.surface2}; color: {t.accent}; }}
 
+QPushButton#titleIconBtn {{
+    background: transparent; border: none; border-radius: 7px;
+    color: {t.accent}; padding: 0;
+    font-family: {MDL2}; font-size: 13px;
+}}
+QPushButton#titleIconBtn:hover {{
+    background: {t.surface2}; color: {t.accent2};
+}}
+
+QPushButton#accentBtn {{
+    background: transparent; color: {t.accent};
+    border: 1px solid {t.accent}; border-radius: 7px;
+    padding: 4px 12px;
+    font-family: {MONO}; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px;
+}}
+QPushButton#accentBtn:hover {{
+    background: {t.accent}; color: {t.bg};
+}}
+
+QPushButton#collapseStrip {{
+    background: {t.surface}; border: none; border-radius: 6px;
+    color: {t.text_dim}; padding: 0;
+    font-family: {MDL2}; font-size: 9px;
+}}
+QPushButton#collapseStrip:hover {{
+    background: {t.surface2}; color: {t.accent};
+}}
+
 QPushButton#linkBtn {{
     background: {t.surface2}; color: {t.text_dim};
     border: 1px solid {t.border}; border-radius: 21px;

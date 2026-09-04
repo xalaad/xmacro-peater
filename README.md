@@ -14,7 +14,26 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 
 *by [Xanonz](https://github.com/xalaad)*
 
+**Windows macro recorder · input replayer · keyboard mouse controller gamepad macro tool · auto clicker alternative · Xbox / PlayStation controller macro · touch gesture recorder · game input automation**
+
 </div>
+
+---
+
+## 📚 Navigation
+
+- [✨ Features](#-features)
+- [📦 Install](#-install)
+- [🚀 Quick start](#-quick-start)
+- [⚙️ Settings explained](#%EF%B8%8F-settings-explained)
+- [⌨️ Default hotkeys](#%EF%B8%8F-default-hotkeys)
+- [🎯 Measured precision](#-measured-precision)
+- [🎮 Custom controller schemes](#-custom-controller-schemes)
+- [🏗 Architecture](#-architecture)
+- [🔨 Building a release locally](#-building-a-release-locally)
+- [🤝 Contributing](#-contributing)
+- [⚠️ Fair use](#%EF%B8%8F-fair-use)
+- [📄 License](#-license)
 
 ---
 
@@ -95,6 +114,56 @@ python -m venv .venv
    (or `Ctrl+F10`). `Ctrl+F11` aborts and releases every held key/button.
 4. Click **Mini** for the in-game overlay, or **Tester** for the
    fullscreen live input dashboard.
+
+## ⚙️ Settings explained
+
+Every setting applies and saves the moment you change it. Hover any
+**(?)** in the app for the same explanations.
+
+### Recording
+
+| Setting | What it does | Example |
+|---|---|---|
+| **Controller poll rate** (default 125 Hz) | How often the gamepad is sampled while recording. 125 Hz matches a standard pad's own USB report rate. | Leave at 125 Hz; raising to 250 Hz rarely captures more detail but doubles CPU use of the pollers. |
+| **Stick deadzone** (default 8%) | A *radial* noise gate: stick positions inside this circle record as a clean 0 so a worn, drifting stick doesn't flood the file. Values are always stored **raw** — this never rescales what's recorded. | Your left stick drifts slightly at rest and the log fills with tiny axis events → raise to 12–15%. |
+| **Trigger deadzone** (default 2%) | Same gate for the analog triggers: pressure below the level records as fully released. | A hair-trigger pad registers 1–2% pull constantly → keep at 2–5%. |
+| **Touch mode** (default OFF) | Records taps, drags & swipes as absolute on-screen gestures and replays them as **genuine Windows touch**. OFF records relative mouse deltas instead. | ON: automate a touchscreen kiosk app (tap button → drag slider). OFF: record camera-look in a shooter — games need relative deltas. |
+
+### Playback
+
+| Setting | What it does | Example |
+|---|---|---|
+| **Start delay** (default 3 s) | Grace period after pressing Play so you can click back into the game window before input starts. | Set 0 when replaying into the currently focused app; 5 s if you need time to alt-tab into a slow game. |
+| **Delay between repeats** (default 1 s) | Pause inserted after each run when repeating N times or looping forever. Synced with the main-screen field. | Farming loop that needs a 30 s respawn wait → set 30. |
+
+### Global hotkeys
+
+| Setting | What it does | Example |
+|---|---|---|
+| **Start/stop recording** (`ctrl+f9`) | Toggles recording even while a game has focus. Hotkey presses are stripped from recordings automatically. | Rebind to `shift+f2` if your game uses Ctrl+F9. |
+| **Play / repeat** (`ctrl+f10`) | Plays the recording selected in the list with the current loop settings. | — |
+| **Stop playback** (`ctrl+f11`) | Aborts instantly and releases every held key/button so nothing sticks. | — |
+
+Two-key combos on purpose: single keys like `Esc` collide with in-game
+menus.
+
+### Mini overlay
+
+| Setting | What it does | Example |
+|---|---|---|
+| **Background opacity** (default 92%) | How solid the overlay card is over your game; text stays fully readable. | Set 50% for a barely-there HUD during streams. |
+| **Show hotkey hints** (ON) | Shows the combo reminders on the overlay. | Turn off once you know them, to save a line. |
+
+> The overlay needs the game in **Borderless/Windowed** mode — exclusive
+> fullscreen bypasses the compositor and no overlay (ours or Steam's) can
+> draw over it.
+
+### Interface
+
+| Setting | What it does | Example |
+|---|---|---|
+| **Visualizer refresh cap** (60 fps) | Upper limit for Input Test animations only — completely independent from recording/playback accuracy. | Drop to 30 fps on a weak laptop; capture stays 125 Hz regardless. |
+| **Sound cues** (ON) | Distinct beeps for record start/stop, playback start/finish/abort, so you know what happened while the game has focus. | Rising two-tone = recording armed; low buzz = aborted. |
 
 ## ⌨️ Default hotkeys
 
