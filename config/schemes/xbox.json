@@ -1,0 +1,16 @@
+{
+  "name": "Xbox / XInput",
+  "backend": "xinput",
+  "art": "controller_xbox.svg",
+  "layout": "xbox",
+  "labels": {
+    "L2": "LT",
+    "R2": "RT",
+    "LEFT_SHOULDER": "LB",
+    "RIGHT_SHOULDER": "RB",
+    "LEFT_THUMB": "LS",
+    "RIGHT_THUMB": "RS",
+    "BACK": "View",
+    "START": "Menu"
+  }
+}

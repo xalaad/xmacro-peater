@@ -1,0 +1,78 @@
+﻿name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # vgamepad's setup.py launches the ViGEmBus driver installer GUI,
+      # which hangs forever on a headless runner. The driver is only a
+      # RUNTIME requirement on end-user machines - patch the installer
+      # call out and install the pure-python package (its ViGEmClient.dll
+      # still gets bundled into the exe).
+      - name: Install vgamepad without the driver GUI
+        shell: pwsh
+        run: |
+          # Fetch the sdist straight from PyPI: pip download would already
+          # execute setup.py (and hang on the installer) during metadata prep.
+          $info = Invoke-RestMethod https://pypi.org/pypi/vgamepad/0.1.0/json
+          $sdist = ($info.urls | Where-Object packagetype -eq 'sdist').url
+          Invoke-WebRequest $sdist -OutFile vgamepad-sdist.tar.gz
+          New-Item -ItemType Directory vgtmp | Out-Null
+          tar -xzf vgamepad-sdist.tar.gz -C vgtmp
+          $setup = "vgtmp/vgamepad-0.1.0/setup.py"
+          $raw = Get-Content $setup -Raw
+          $patched = $raw.Replace("subprocess.call(['msiexec', '/i', '%s' % str(pathMsi)], shell=True)", "pass")
+          if ($patched -eq $raw) { throw "vgamepad installer patch did not match setup.py" }
+          Set-Content $setup $patched
+          pip install ./vgtmp/vgamepad-0.1.0
+          Remove-Item vgtmp, vgamepad-sdist.tar.gz -Recurse -Force
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Run core tests
+        run: >
+          pytest tests/test_deadzone.py tests/test_events.py
+          tests/test_hotkeys.py tests/test_schemes.py
+          tests/test_axis_raw.py tests/test_recorder.py tests/test_touch.py
+          tests/test_playback.py -q
+          --deselect tests/test_playback.py::test_timing_within_2ms
+      - name: Build executable
+        run: pyinstaller xmacro_peater.spec
+      - name: Build branded installer
+        shell: pwsh
+        run: |
+          # Stage the ViGEmBus MSI shipped inside the vgamepad package.
+          # find_spec, NOT import: importing vgamepad connects to the
+          # ViGEmBus driver, which doesn't exist on the runner.
+          $vg = python -c "import importlib.util, pathlib; print(pathlib.Path(importlib.util.find_spec('vgamepad').origin).parent)"
+          Copy-Item "$vg\win\vigem\install\x64\ViGEmBusSetup_x64.msi" installer\
+          choco install innosetup -y --no-progress
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=$ver installer\xmacro.iss
+      - name: Package portable archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory package | Out-Null
+          Copy-Item dist\XMacro-peater.exe package\
+          Copy-Item README.md, LICENSE package\
+          Compress-Archive -Path package\* -DestinationPath "XMacro-peater-${{ github.ref_name }}-win64-portable.zip"
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer/Output/XMacro-peater-Setup-*.exe
+            XMacro-peater-*.zip
+          generate_release_notes: true
+

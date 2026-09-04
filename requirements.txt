@@ -1,0 +1,15 @@
+# Core runtime
+PySide6>=6.6
+pynput>=1.7
+vgamepad>=0.1
+pydantic>=2.5
+
+# Optional — only needed for PlayStation / generic (non-XInput) controllers.
+# The app feature-detects this and grays out those options if missing.
+pygame>=2.5
+
+# Development
+pytest>=7.4
+
+# Packaging (Phase 7)
+pyinstaller>=6.0

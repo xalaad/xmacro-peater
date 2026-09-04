@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+installer/Output/
+installer/ViGEmBusSetup*.msi
+*.spec.bak
+.pytest_cache/
+logs/
+recordings/*.json
+config/app_config.json
+config/ui_cache/
+.claude/
+

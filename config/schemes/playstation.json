@@ -1,0 +1,38 @@
+{
+  "name": "PlayStation (DualShock 4 / DualSense)",
+  "backend": "pygame",
+  "art": "controller_ps.svg",
+  "layout": "ps",
+  "labels": {
+    "A": "Cross",
+    "B": "Circle",
+    "X": "Square",
+    "Y": "Triangle",
+    "BACK": "Share",
+    "START": "Options",
+    "LEFT_SHOULDER": "L1",
+    "RIGHT_SHOULDER": "R1",
+    "LEFT_THUMB": "L3",
+    "RIGHT_THUMB": "R3"
+  },
+  "buttons": {
+    "0": "A",
+    "1": "B",
+    "2": "X",
+    "3": "Y",
+    "4": "BACK",
+    "6": "START",
+    "7": "LEFT_THUMB",
+    "8": "RIGHT_THUMB",
+    "9": "LEFT_SHOULDER",
+    "10": "RIGHT_SHOULDER",
+    "11": "DPAD_UP",
+    "12": "DPAD_DOWN",
+    "13": "DPAD_LEFT",
+    "14": "DPAD_RIGHT"
+  },
+  "axes": { "lx": 0, "ly": 1, "rx": 2, "ry": 3 },
+  "triggers": { "lt": 4, "rt": 5 },
+  "invert_y": true,
+  "hat_dpad": false
+}
