@@ -16,6 +16,26 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 
 **Windows macro recorder · input replayer · keyboard mouse controller gamepad macro tool · auto clicker alternative · Xbox / PlayStation controller macro · touch gesture recorder · game input automation**
 
+<br>
+
+![XMacro-peater — main window with live input test](docs/screenshots/app-full.png)
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/compact-deck.png" width="220" alt="Compact sidebar deck"></td>
+    <td align="center"><img src="docs/screenshots/settings.png" width="300" alt="Settings dialog"></td>
+    <td align="center"><img src="docs/screenshots/overlay.png" width="330" alt="In-game mini overlay"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Compact deck</b> — sidebar-only mode, one arrow-click away</sub></td>
+    <td align="center"><sub><b>Settings</b> — everything applies &amp; saves live</sub></td>
+    <td align="center"><sub><b>Mini overlay</b> — control it from inside your game</sub></td>
+  </tr>
+</table>
+
+![TEST MODE — fullscreen live input dashboard](docs/screenshots/test-mode.png)
+<sub><b>TEST MODE</b> — every device live, edge to edge: full mechanical keyboard with numpad, controller with per-button glow, analog scopes, and a circular mouse stage.</sub>
+
 </div>
 
 ---
