@@ -14,13 +14,12 @@ log = logging.getLogger(__name__)
 APP_VERSION = "1.0"
 
 if getattr(sys, "frozen", False):
-    # PyInstaller: the exe usually lives in Program Files, which is
-    # read-only for normal users — user data (config/logs/recordings)
-    # goes to %LOCALAPPDATA%\XMacro-peater instead.
-    APP_DIR = Path(os.environ.get("LOCALAPPDATA",
-                                  str(Path.home()))) / "XMacro-peater"
-    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS",
-                              Path(sys.executable).resolve().parent))
+    # PyInstaller: config/recordings/logs live NEXT TO THE EXE so users
+    # can find, edit, and share them easily. The installer grants write
+    # permission on these folders (Program Files is otherwise read-only);
+    # the portable build sits in a user-writable folder anyway.
+    APP_DIR = Path(sys.executable).resolve().parent
+    BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
 else:
     APP_DIR = Path(__file__).resolve().parent.parent
     BUNDLE_DIR = APP_DIR
@@ -60,8 +59,9 @@ class OverlayConfig(BaseModel):
 
 
 class PlaybackConfig(BaseModel):
-    loop_delay: float = Field(default=1.0, ge=0.0, le=3600.0)
-    countdown_seconds: int = Field(default=3, ge=0, le=10)
+    # Both delays accept long schedules (up to 24h) via the h/m/s pickers
+    loop_delay: float = Field(default=1.0, ge=0.0, le=86400.0)
+    countdown_seconds: float = Field(default=3, ge=0, le=86400.0)
     loop_mode: int = Field(default=0, ge=0, le=2)  # once / N times / forever
     loop_count: int = Field(default=5, ge=2, le=9999)
 
@@ -102,6 +102,32 @@ def save_config(cfg: AppConfig, path: str | Path = CONFIG_PATH) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(cfg.model_dump_json(indent=2), encoding="utf-8")
+
+
+def migrate_legacy_data() -> None:
+    """One-time move from the old %LOCALAPPDATA%\\XMacro-peater location
+    (used by earlier builds) to the folders next to the exe."""
+    if not getattr(sys, "frozen", False):
+        return
+    legacy = Path(os.environ.get("LOCALAPPDATA", "")) / "XMacro-peater"
+    if not legacy.exists() or legacy == APP_DIR:
+        return
+    import shutil
+    try:
+        old_cfg = legacy / "config" / "app_config.json"
+        if old_cfg.exists() and not CONFIG_PATH.exists():
+            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(old_cfg, CONFIG_PATH)
+        old_rec = legacy / "recordings"
+        if old_rec.exists():
+            RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+            for f in old_rec.glob("*.json"):
+                dest = RECORDINGS_DIR / f.name
+                if not dest.exists():
+                    shutil.copy2(f, dest)
+        log.info("Migrated legacy data from %s", legacy)
+    except OSError as e:
+        log.warning("Legacy data migration failed: %s", e)
 
 
 def setup_logging(level: int = logging.INFO) -> None:

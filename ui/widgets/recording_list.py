@@ -102,7 +102,9 @@ class MarqueeLabel(QWidget):
             p.drawText(x, y, self._text)
             p.drawText(x + span, y, self._text)
         else:
-            p.drawText(0, y, self._text)
+            # Fits: center horizontally for a balanced card look
+            p.drawText((self.width() - self._text_width()) // 2, y,
+                       self._text)
 
 
 class RecordingRow(QWidget):
@@ -117,7 +119,7 @@ class RecordingRow(QWidget):
         self.theme = theme
 
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(8, 0, 6, 0)
+        lay.setContentsMargins(10, 0, 8, 0)
         lay.setSpacing(6)
 
         self.label = MarqueeLabel(name, theme)

@@ -35,6 +35,14 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 DisableWelcomePage=no
 
+[Dirs]
+; User data lives next to the exe for easy access/editing/sharing —
+; grant normal users write permission inside Program Files
+Name: "{app}\config"; Permissions: users-modify
+Name: "{app}\config\schemes"; Permissions: users-modify
+Name: "{app}\recordings"; Permissions: users-modify
+Name: "{app}\logs"; Permissions: users-modify
+
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; \
     GroupDescription: "Additional icons:"

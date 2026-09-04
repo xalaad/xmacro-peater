@@ -33,6 +33,7 @@ from core.hotkeys import parse_combo
 
 from .dialogs import FramelessDialog, alert, confirm
 from .scrolling import enable_smooth_scroll
+from .widgets.duration_picker import DurationPicker
 
 
 def _valid_combo(spec: str, fallback: str) -> str:
@@ -199,28 +200,26 @@ class SettingsDialog(FramelessDialog):
         s = self._section("Playback")
         cfg = self.cfg
 
-        self.countdown = QSpinBox()
-        self.countdown.setRange(0, 10)
-        self.countdown.setSuffix(" s")
+        self.countdown = DurationPicker()
         self.countdown.setValue(cfg.playback.countdown_seconds)
         self.countdown.valueChanged.connect(self._apply)
         self._setting(
             s, "Start delay (before first run)", self.countdown,
             "Grace period after you press Play, so you can click back into "
-            "the game window before input starts. Set 0 to start instantly.",
+            "the game window before input starts. Expand to h/m/s to "
+            "SCHEDULE a run (e.g. start in 2h 30m — the main screen shows "
+            "the exact clock time). Set 0 to start instantly.",
         )
 
-        self.loop_delay = QDoubleSpinBox()
-        self.loop_delay.setRange(0.0, 3600.0)
-        self.loop_delay.setDecimals(2)
-        self.loop_delay.setSuffix(" s")
+        self.loop_delay = DurationPicker()
         self.loop_delay.setValue(cfg.playback.loop_delay)
         self.loop_delay.valueChanged.connect(self._apply)
         self._setting(
             s, "Delay between repeats", self.loop_delay,
             "Pause inserted after each run when repeating or looping "
-            "forever. The main screen shows the same value — changing "
-            "either updates both.",
+            "forever — expand to h/m/s for long, time-based repeats. "
+            "The main screen shows the same value; changing either "
+            "updates both.",
         )
 
     def _build_hotkeys_section(self) -> None:
@@ -338,7 +337,7 @@ class SettingsDialog(FramelessDialog):
         c.hotkeys.abort_playback = _valid_combo(
             self.hk_abort.text().strip(), "ctrl+f11")
         c.playback.loop_delay = self.loop_delay.value()
-        c.playback.countdown_seconds = self.countdown.value()
+        c.playback.countdown_seconds = float(self.countdown.value())
         c.overlay.opacity = self.ov_opacity.value() / 100.0
         c.overlay.show_hints = self.ov_hints.isChecked()
         c.ui_fps = self.fps.value()

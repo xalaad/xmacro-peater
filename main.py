@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 
-from core.config import load_config, setup_logging
+from core.config import load_config, migrate_legacy_data, setup_logging
 from ui.branding import make_icon, make_logo
 from ui.main_window import MainWindow
 from ui.theme import build_qss, get_theme
@@ -73,6 +73,7 @@ def main() -> int:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     setup_logging()
+    migrate_legacy_data()
     cfg = load_config()
     theme = get_theme()
 

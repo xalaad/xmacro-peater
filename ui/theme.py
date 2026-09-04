@@ -269,6 +269,35 @@ QListWidget QLineEdit {{
     selection-background-color: {t.accent};
 }}
 
+/* Recordings: card-style rows — taller, spaced, hover glow, and the
+   same look whether or not the list has keyboard focus */
+QListWidget#recList {{
+    background: transparent; border: none; padding: 2px; outline: 0;
+}}
+QListWidget#recList::item {{
+    background: {t.surface2};
+    border: 1px solid transparent;
+    border-radius: 9px;
+    margin: 3px 2px;
+    padding: 0;
+    color: {t.text};
+    outline: 0;
+}}
+QListWidget#recList::item:hover {{
+    background: {t.border};
+    border-color: {t.border};
+}}
+QListWidget#recList::item:selected,
+QListWidget#recList::item:selected:!active {{
+    background: {t.surface2};
+    border: 1px solid {t.accent};
+    color: {t.text};
+}}
+QListWidget#recList::item:selected:hover {{
+    background: {t.border};
+    border-color: {t.accent2};
+}}
+
 QSlider::groove:horizontal {{
     height: 5px; background: {t.surface2}; border-radius: 2px;
 }}
@@ -310,6 +339,18 @@ QToolTip {{
     background: {t.surface2}; color: {t.text};
     border: 1px solid {t.accent}; border-radius: 6px; padding: 5px 8px;
 }}
+
+QMenu {{
+    background: {t.surface2}; color: {t.text};
+    border: 1px solid {t.border}; border-radius: 8px; padding: 4px;
+}}
+QMenu::item {{
+    background: transparent; color: {t.text};
+    border-radius: 5px; padding: 5px 22px 5px 12px;
+}}
+QMenu::item:selected {{ background: {t.accent}; color: {t.bg}; }}
+QMenu::item:disabled {{ color: {t.text_dim}; }}
+QMenu::separator {{ height: 1px; background: {t.border}; margin: 4px 8px; }}
 
 QCheckBox {{ spacing: 6px; }}
 QCheckBox::indicator {{

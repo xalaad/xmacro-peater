@@ -91,6 +91,11 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   record temp takes, and replay them on the spot.
 - **Sound cues** — distinct beep motifs for record/play/stop so you always
   know what happened while the game has focus.
+- **Time-based repeats & scheduling** — both delays are hours / minutes /
+  seconds pickers (the clock button collapses them to a single seconds
+  field): schedule a run for later ("start in 2h 30m" — the plan line
+  shows the exact clock time and a live countdown ticks on the overlay)
+  or space repeats hours apart.
 - **Custom dark UI** — frameless themed window, green/olive terminal
   aesthetic, everything resizable with a sane minimum.
 
@@ -153,8 +158,8 @@ Every setting applies and saves the moment you change it. Hover any
 
 | Setting | What it does | Example |
 |---|---|---|
-| **Start delay** (default 3 s) | Grace period after pressing Play so you can click back into the game window before input starts. | Set 0 when replaying into the currently focused app; 5 s if you need time to alt-tab into a slow game. |
-| **Delay between repeats** (default 1 s) | Pause inserted after each run when repeating N times or looping forever. Synced with the main-screen field. | Farming loop that needs a 30 s respawn wait → set 30. |
+| **Start delay** (default 3 s) | Grace period after pressing Play, entered as **h / m / s**. Set hours or minutes to *schedule* the run — the plan line shows the exact clock time and a countdown ticks on the overlay. | Leave 0 to replay into the focused app instantly; set `2h 30m` to schedule a run for later tonight. |
+| **Delay between repeats** (default 1 s) | Pause after each run when repeating N times or looping forever, also **h / m / s** for time-based repeats. Synced with the main-screen field. | 30 s respawn wait → `30s`; run the loop once every hour → `1h`. |
 
 ### Global hotkeys
 

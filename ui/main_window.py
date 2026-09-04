@@ -78,6 +78,7 @@ from .theme import get_theme
 from .titlebar import TITLEBAR_HEIGHT, TitleBar
 from .widgets.activity_log import ActivityLog, is_motion_event
 from .widgets.controller_widget import ControllerWidget
+from .widgets.duration_picker import DurationPicker, format_duration
 from .widgets.keyboard_widget import KeyboardWidget
 from .widgets.mouse_widget import MouseWidget
 from .widgets.recording_list import RecordingRow
@@ -343,35 +344,38 @@ class MainWindow(QMainWindow):
         loop_row.addWidget(self.loop_count)
         lay.addLayout(loop_row)
 
+        # Each delay = label line + full-width picker line, so the h/m/s
+        # fields get the whole sidebar width split evenly when expanded
         self._repeat_delay_row = QWidget()
-        delay_row = QHBoxLayout(self._repeat_delay_row)
-        delay_row.setContentsMargins(0, 0, 0, 0)
-        delay_label = QLabel("Delay between repeats")
+        delay_col = QVBoxLayout(self._repeat_delay_row)
+        delay_col.setContentsMargins(0, 0, 0, 0)
+        delay_col.setSpacing(3)
+        delay_label = QLabel("Repeat delay")
         delay_label.setObjectName("dim")
-        self.loop_delay = QDoubleSpinBox()
-        self.loop_delay.setRange(0.0, 3600.0)
-        self.loop_delay.setDecimals(2)
-        self.loop_delay.setSuffix(" s")
+        delay_label.setToolTip(
+            "Pause between runs — expand to h/m/s for long waits "
+            "(time-based repeats)")
+        self.loop_delay = DurationPicker()
         self.loop_delay.setValue(self.cfg.playback.loop_delay)
         self.loop_delay.valueChanged.connect(self._on_delay_edited)
-        delay_row.addWidget(delay_label, 1)
-        delay_row.addWidget(self.loop_delay)
+        delay_col.addWidget(delay_label)
+        delay_col.addWidget(self.loop_delay)
         lay.addWidget(self._repeat_delay_row)
 
         start_row_w = QWidget()
-        start_row = QHBoxLayout(start_row_w)
-        start_row.setContentsMargins(0, 0, 0, 0)
-        start_label = QLabel("Start delay (1st run)")
+        start_col = QVBoxLayout(start_row_w)
+        start_col.setContentsMargins(0, 0, 0, 0)
+        start_col.setSpacing(3)
+        start_label = QLabel("Start delay")
         start_label.setObjectName("dim")
         start_label.setToolTip(
-            "Grace period after Play so you can click into the game window")
-        self.start_delay = QSpinBox()
-        self.start_delay.setRange(0, 10)
-        self.start_delay.setSuffix(" s")
+            "Grace period after Play — expand to h/m/s to SCHEDULE the "
+            "run (the plan line shows the exact clock time)")
+        self.start_delay = DurationPicker()
         self.start_delay.setValue(self.cfg.playback.countdown_seconds)
         self.start_delay.valueChanged.connect(self._on_delay_edited)
-        start_row.addWidget(start_label, 1)
-        start_row.addWidget(self.start_delay)
+        start_col.addWidget(start_label)
+        start_col.addWidget(self.start_delay)
         lay.addWidget(start_row_w)
 
         self.plan_label = QLabel("")
@@ -395,12 +399,15 @@ class MainWindow(QMainWindow):
         lay.addLayout(rec_header)
 
         self.rec_list = QListWidget()
+        self.rec_list.setObjectName("recList")
         self.rec_list.itemDoubleClicked.connect(lambda _: self.start_playback())
+        # Keyboard-only flow: arrows navigate, Enter/Space plays
+        self.rec_list.itemActivated.connect(lambda _: self.start_playback())
         self.rec_list.currentItemChanged.connect(self._update_recording_info)
         # Item widgets are sized to the item's sizeHint — keep hints synced
         # to the viewport so rows always span the full width.
         self.rec_list.viewport().installEventFilter(self)
-        self.rec_list.setSpacing(2)
+        self.rec_list.installEventFilter(self)
         enable_smooth_scroll(self.rec_list)
         lay.addWidget(self.rec_list, 1)
 
@@ -578,12 +585,18 @@ class MainWindow(QMainWindow):
         if (obj is self.rec_list.viewport()
                 and event.type() == event.Type.Resize):
             self._sync_row_widths()
+        elif (obj is self.rec_list
+                and event.type() == event.Type.KeyPress
+                and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter,
+                                    Qt.Key.Key_Space)):
+            self.start_playback()
+            return True
         return super().eventFilter(obj, event)
 
     def _sync_row_widths(self) -> None:
-        width = self.rec_list.viewport().width() - 2 * self.rec_list.spacing() - 4
+        width = self.rec_list.viewport().width() - 8
         for i in range(self.rec_list.count()):
-            self.rec_list.item(i).setSizeHint(QSize(width, 30))
+            self.rec_list.item(i).setSizeHint(QSize(width, 38))
 
     # -------------------------------------------------------- window chrome
     def nativeEvent(self, event_type, message):
@@ -1096,9 +1109,12 @@ class MainWindow(QMainWindow):
 
         sounds.play_start()
         countdown = self.start_delay.value()
+        self._sched_until = time.monotonic() + countdown
         self._log(
             f"Playing {path.name}"
-            + (f" in {countdown}s — click into your game!" if countdown else "…"),
+            + (f" in {format_duration(countdown)}"
+               + (" — click into your game!" if countdown < 60 else "")
+               if countdown else "…"),
             self.theme.success,
         )
 
@@ -1113,7 +1129,7 @@ class MainWindow(QMainWindow):
             )
             self.engine.start()
 
-        QTimer.singleShot(countdown * 1000, launch)
+        QTimer.singleShot(int(countdown * 1000), launch)
 
     def abort_playback(self) -> None:
         if self.engine is not None:
@@ -1167,15 +1183,23 @@ class MainWindow(QMainWindow):
         sd = self.start_delay.value() if hasattr(self, "start_delay") else \
             self.cfg.playback.countdown_seconds
         delay = self.loop_delay.value()
-        start = f"starts after {sd}s" if sd else "starts instantly"
+        if sd >= 60:  # scheduled: show the actual clock time too
+            at = (datetime.datetime.now()
+                  + datetime.timedelta(seconds=sd)).strftime("%H:%M")
+            start = f"starts after {format_duration(sd)} (~{at})"
+        elif sd:
+            start = f"starts after {format_duration(sd)}"
+        else:
+            start = "starts instantly"
+        between = format_duration(delay)
         if mode == 0:
             plan = f"▶ Plays once — {start}."
         elif mode == 1:
-            plan = (f"▶ {self.loop_count.value()} runs, {delay:g}s between "
+            plan = (f"▶ {self.loop_count.value()} runs, {between} between "
                     f"— {start}.")
         else:
             stop = combo_label(self.cfg.hotkeys.abort_playback)
-            plan = (f"▶ Loops until {stop}, {delay:g}s between runs "
+            plan = (f"▶ Loops until {stop}, {between} between runs "
                     f"— {start}.")
         self.plan_label.setText(plan)
 
@@ -1201,7 +1225,7 @@ class MainWindow(QMainWindow):
         """Both delays live-save to config so Settings and the main screen
         always agree."""
         self.cfg.playback.loop_delay = self.loop_delay.value()
-        self.cfg.playback.countdown_seconds = self.start_delay.value()
+        self.cfg.playback.countdown_seconds = float(self.start_delay.value())
         save_config(self.cfg)
         self._update_playback_plan()
 
@@ -1212,7 +1236,7 @@ class MainWindow(QMainWindow):
         for path in sorted(RECORDINGS_DIR.glob("*.json")):
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, path.name)
-            item.setSizeHint(QSize(10, 30))
+            item.setSizeHint(QSize(10, 38))
             row = RecordingRow(path.name, self.theme)
             row.rename_requested.connect(self._rename_recording)
             row.delete_requested.connect(self._delete_recording)
@@ -1331,6 +1355,13 @@ class MainWindow(QMainWindow):
             self.overlay.set_info(
                 f"{touch_tag}{self.recorder.elapsed:.0f}s · "
                 f"{self.recorder.event_count} events")
+        elif self._playback_active and self.engine is None:
+            # Scheduled wait: live countdown until the run starts
+            remaining = getattr(self, "_sched_until", 0) - time.monotonic()
+            if remaining > 0:
+                self.overlay.set_info(f"▶ in {format_duration(remaining)}")
+                self.stats.setText(
+                    f"Scheduled — starts in {format_duration(remaining)}")
         elif self._playback_active and self._run_info:
             self.overlay.set_info(self._run_info)
 
