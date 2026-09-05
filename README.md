@@ -85,6 +85,11 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **True hardware mouse capture** via **Windows Raw Input**: real deltas,
   immune to games recentering or clamping the cursor. Analog values are
   recorded **raw** (deadzone is only a noise gate — never rescaled).
+  Each move also rides along the **absolute cursor path** — same-screen
+  replay stays bit-perfect raw counts (what games need), while replay on
+  a *different* screen automatically switches to the recorded cursor
+  path, rescaled, bypassing pointer speed/acceleration — so mouse macros
+  survive moving between machines and resolutions.
 - **Precise replay** — hybrid sleep/busy-wait scheduling with
   TIME_CRITICAL threads lands events within ~1 ms of the recorded
   timestamps even under full game load. Mouse motion replays as genuine

@@ -139,7 +139,8 @@ class KeyboardMouseCapture:
         if self._last_pos is not None:
             dx, dy = x - self._last_pos[0], y - self._last_pos[1]
             if dx or dy:
-                self.emit({"src": "mouse_move", "dx": dx, "dy": dy})
+                self.emit({"src": "mouse_move", "dx": dx, "dy": dy,
+                           "px": int(x), "py": int(y)})
         self._last_pos = (x, y)
 
     def _on_click(self, x, y, button, pressed) -> None:

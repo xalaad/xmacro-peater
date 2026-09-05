@@ -128,6 +128,25 @@ def test_no_cursor_anchor_without_mouse_events(monkeypatch):
     assert calls == []  # kb-only macro: cursor untouched
 
 
+def test_cross_screen_replay_uses_absolute_path(monkeypatch):
+    """A take recorded at 1920x1080 replayed on 1280x720: the engine
+    must send the rescaled cursor path, not raw counts."""
+    import core.playback.touch as touch_mod
+    outputs = stub_output(monkeypatch)
+    monkeypatch.setattr(touch_mod, "virtual_screen_rect",
+                        lambda: {"x": 0, "y": 0, "w": 1280, "h": 720})
+    macro = MacroFile(
+        events=[MacroEvent(0.001, "mouse_move",
+                           {"dx": 9, "dy": 9, "px": 960, "py": 540})],
+        screen={"x": 0, "y": 0, "w": 1920, "h": 1080})
+    eng = PlaybackEngine(macro, loop_count=1)
+    eng.start()
+    eng.join(timeout=5)
+    (_t, ev), = outputs[0].sent
+    assert ev.src == "mouse_abs"
+    assert (ev.data["x"], ev.data["y"]) == (640, 360)
+
+
 def test_abort_during_loop_delay(monkeypatch):
     stub_output(monkeypatch)
     eng = PlaybackEngine(

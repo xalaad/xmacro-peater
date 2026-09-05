@@ -76,24 +76,40 @@ def virtual_screen_rect() -> dict | None:
 
 
 def adapt_touch_events(events, recorded: dict | None):
-    """Rescale absolute touch positions from the RECORDING machine's
-    virtual screen to the CURRENT one, so gestures land on the same
-    relative spots regardless of resolution/scaling. No-op when screens
-    match or the take predates screen metadata."""
+    """Screen adaptation for a take replayed on a DIFFERENT screen than
+    it was recorded on. No-op (same list object) when screens match or
+    the take predates screen metadata.
+
+    - touch events: absolute x/y rescaled linearly to the current screen
+    - mouse_move events that carry the absolute cursor path (px/py):
+      converted to runtime 'mouse_abs' events at the rescaled path —
+      raw relative counts are hardware mickeys shaped by THIS machine's
+      pointer speed/acceleration and screen, so replaying them on a
+      different setup walks a different path; the recorded cursor path,
+      rescaled, is the truth. Same-screen replay keeps raw counts
+      (bit-perfect for games). Old takes without px/py stay relative."""
     cur = virtual_screen_rect()
     if (not recorded or not cur or recorded == cur
             or not recorded.get("w") or not recorded.get("h")):
         return events
     from ..events import TOUCH, MacroEvent
+    rx, ry = recorded.get("x", 0), recorded.get("y", 0)
     sx = cur["w"] / recorded["w"]
     sy = cur["h"] / recorded["h"]
+
+    def scale(x, y):
+        return (round(cur["x"] + (x - rx) * sx),
+                round(cur["y"] + (y - ry) * sy))
+
     out = []
     for ev in events:
         if ev.src == TOUCH:
             d = dict(ev.data)
-            d["x"] = round(cur["x"] + (d["x"] - recorded.get("x", 0)) * sx)
-            d["y"] = round(cur["y"] + (d["y"] - recorded.get("y", 0)) * sy)
+            d["x"], d["y"] = scale(d["x"], d["y"])
             out.append(MacroEvent(ev.t, ev.src, d))
+        elif ev.src == "mouse_move" and "px" in ev.data:
+            x, y = scale(ev.data["px"], ev.data["py"])
+            out.append(MacroEvent(ev.t, "mouse_abs", {"x": x, "y": y}))
         else:
             out.append(ev)
     return out

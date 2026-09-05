@@ -29,6 +29,8 @@ log = logging.getLogger(__name__)
 # genuine relative motion event — the same thing physical mice produce.
 if sys.platform == "win32":
     _MOUSEEVENTF_MOVE = 0x0001
+    _MOUSEEVENTF_ABSOLUTE = 0x8000
+    _MOUSEEVENTF_VIRTUALDESK = 0x4000
 
     class _MOUSEINPUT(ctypes.Structure):
         _fields_ = [
@@ -53,6 +55,20 @@ if sys.platform == "win32":
 
     RELATIVE_MOVE_AVAILABLE = True
 
+    def send_absolute_move(x: int, y: int) -> None:
+        """Cursor to an exact virtual-desktop pixel — bypasses pointer
+        speed/acceleration entirely (used for cross-screen replay)."""
+        gm = ctypes.windll.user32.GetSystemMetrics
+        vx, vy, vw, vh = gm(76), gm(77), gm(78), gm(79)
+        nx = round((x - vx) * 65535 / max(1, vw - 1))
+        ny = round((y - vy) * 65535 / max(1, vh - 1))
+        inp = _INPUT(type=0, mi=_MOUSEINPUT(
+            dx=nx, dy=ny, mouseData=0,
+            dwFlags=(_MOUSEEVENTF_MOVE | _MOUSEEVENTF_ABSOLUTE
+                     | _MOUSEEVENTF_VIRTUALDESK),
+            time=0, dwExtraInfo=0))
+        _SendInput(1, ctypes.byref(inp), ctypes.sizeof(_INPUT))
+
     class _POINT(ctypes.Structure):
         _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
 
@@ -68,6 +84,9 @@ else:  # pragma: no cover
     RELATIVE_MOVE_AVAILABLE = False
 
     def send_relative_move(dx: int, dy: int) -> None:
+        raise NotImplementedError
+
+    def send_absolute_move(x: int, y: int) -> None:
         raise NotImplementedError
 
     def get_cursor_pos() -> tuple[int, int]:
@@ -213,6 +232,13 @@ class VirtualOutput:
                 send_relative_move(d["dx"], d["dy"])
             else:
                 self._mouse.move(d["dx"], d["dy"])
+        elif ev.src == "mouse_abs":
+            # Runtime-only event from cross-screen adaptation: replay the
+            # recorded CURSOR PATH (rescaled) instead of raw counts
+            if RELATIVE_MOVE_AVAILABLE:
+                send_absolute_move(d["x"], d["y"])
+            else:
+                self._mouse.position = (d["x"], d["y"])
         elif ev.src == "mouse_btn":
             btn = getattr(mouse.Button, d["button"])
             if d["action"] == "down":

@@ -52,6 +52,38 @@ def test_legacy_takes_without_screen_pass_through():
     assert adapt_touch_events(events, None) is events
 
 
+def test_cross_screen_mouse_path_replays_absolute(monkeypatch):
+    """On a different screen, raw counts are meaningless (pointer speed/
+    accel/resolution differ) — moves carrying the cursor path convert to
+    rescaled absolute events; old takes without a path stay relative."""
+    monkeypatch.setattr(touch_mod, "virtual_screen_rect",
+                        lambda: {"x": 0, "y": 0, "w": 1280, "h": 720})
+    events = [
+        MacroEvent(0.0, "mouse_move",
+                   {"dx": 7, "dy": 3, "px": 960, "py": 540}),
+        MacroEvent(0.1, "mouse_move", {"dx": 5, "dy": 5}),  # legacy
+        MacroEvent(0.2, "mouse_btn", {"action": "down", "button": "left"}),
+    ]
+    out = adapt_touch_events(
+        events, {"x": 0, "y": 0, "w": 1920, "h": 1080})
+    assert out[0].src == "mouse_abs"
+    assert (out[0].data["x"], out[0].data["y"]) == (640, 360)
+    assert out[1] is events[1]   # no recorded path: left as raw counts
+    assert out[2] is events[2]
+
+
+def test_raw_capture_rides_cursor_path(monkeypatch):
+    from core.capture.raw_mouse import RawMouseCapture
+    if not RawMouseCapture.available():
+        return
+    got = []
+    cap = RawMouseCapture(got.append)
+    monkeypatch.setattr(cap, "_cursor_pos", lambda: (321, 654))
+    cap._emit_move(4, -2)
+    assert got == [{"src": "mouse_move", "dx": 4, "dy": -2,
+                    "px": 321, "py": 654}]
+
+
 class FakeButton:
     def __init__(self, name):
         self._n = name

@@ -33,7 +33,7 @@ from ..theme import Theme
 
 MAX_ENTRIES = 400
 COALESCE_S = 0.25
-HIGH_FREQ = {"mouse_move", "pad_axis", "pad_trigger"}
+HIGH_FREQ = {"mouse_move", "mouse_abs", "pad_axis", "pad_trigger"}
 
 
 def is_motion_event(ev: MacroEvent) -> bool:
@@ -141,6 +141,8 @@ class ActivityLog(QFrame):
             return f"Key {key.upper()} {d['action']}"
         if ev.src == "mouse_move":
             return f"Mouse move ({d['dx']:+d}, {d['dy']:+d})"
+        if ev.src == "mouse_abs":
+            return f"Mouse to ({d['x']}, {d['y']})"
         if ev.src == "mouse_btn":
             return f"Mouse {d['button']} {d['action']}"
         if ev.src == "mouse_scroll":

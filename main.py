@@ -9,6 +9,30 @@ import logging
 import sys
 import traceback
 
+
+def _force_per_monitor_dpi() -> None:
+    """Pin the process to Per-Monitor-V2 DPI awareness BEFORE anything
+    else runs. The frozen exe's manifest declares no awareness, so
+    coordinates would otherwise depend on Qt winning the set-awareness
+    race — and a DPI-unaware (or stale system-aware) process gets
+    VIRTUALIZED coordinates, putting recorded/injected touch positions
+    off the mark on scaled displays. Awareness can only be set once per
+    process; failures (already set) are fine."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:  # Win10 1703+: Per-Monitor V2
+        ctypes.windll.user32.SetProcessDpiAwarenessContext(
+            ctypes.c_void_p(-4))
+    except (AttributeError, OSError):
+        try:  # Win 8.1 fallback: per-monitor (v1)
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except (AttributeError, OSError):
+            pass
+
+
+_force_per_monitor_dpi()
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
@@ -49,6 +73,34 @@ def make_splash(theme, app_name: str) -> QSplashScreen:
     return QSplashScreen(pm)
 
 
+def run_touch_check_mode() -> int:
+    """XMacro-peater.exe --touch-check: self-diagnose touch precision on
+    THIS machine; report in a dialog + logs/touch_check.txt."""
+    sys.argv = [a for a in sys.argv if a != "--touch-check"]
+    app = QApplication(sys.argv)
+
+    from core.config import LOGS_DIR
+    from ui.touch_check import run_touch_check
+
+    def done(report: str, ok: bool) -> None:
+        try:
+            LOGS_DIR.mkdir(parents=True, exist_ok=True)
+            (LOGS_DIR / "touch_check.txt").write_text(
+                report, encoding="utf-8")
+        except OSError:
+            pass
+        print(report)
+        box = QMessageBox(
+            QMessageBox.Icon.Information if ok
+            else QMessageBox.Icon.Warning,
+            "Touch precision check", report)
+        box.exec()
+        app.quit()
+
+    run_touch_check(app, done)
+    return app.exec()
+
+
 def install_excepthook(app: QApplication) -> None:
     """Never show the user a raw traceback — log it, dialog a summary."""
 
@@ -66,6 +118,8 @@ def install_excepthook(app: QApplication) -> None:
 
 
 def main() -> int:
+    if "--touch-check" in sys.argv:
+        return run_touch_check_mode()
     smoke = "--smoke" in sys.argv
     if smoke:
         sys.argv = [a for a in sys.argv if a != "--smoke"]

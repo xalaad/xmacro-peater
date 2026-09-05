@@ -251,6 +251,11 @@ class RawMouseCapture:
             self._failed = True
             self._ready.set()
 
+    def _cursor_pos(self) -> tuple[int, int]:
+        pt = ctypes.wintypes.POINT()
+        _user32.GetCursorPos(ctypes.byref(pt))
+        return pt.x, pt.y
+
     def _flush_loop(self) -> None:
         boost_thread_priority()
         ticker = DriftCorrectedTicker(self.hz)
@@ -261,4 +266,12 @@ class RawMouseCapture:
                 dx, dy = self._acc_dx, self._acc_dy
                 self._acc_dx = self._acc_dy = 0
             if dx or dy:
-                self.emit({"src": "mouse_move", "dx": dx, "dy": dy})
+                self._emit_move(dx, dy)
+
+    def _emit_move(self, dx: int, dy: int) -> None:
+        # px/py: the absolute cursor path riding along with the raw
+        # counts — playback uses it (rescaled) when the take runs on a
+        # different screen than it was recorded on
+        px, py = self._cursor_pos()
+        self.emit({"src": "mouse_move", "dx": dx, "dy": dy,
+                   "px": px, "py": py})
