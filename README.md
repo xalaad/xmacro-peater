@@ -85,11 +85,12 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **True hardware mouse capture** via **Windows Raw Input**: real deltas,
   immune to games recentering or clamping the cursor. Analog values are
   recorded **raw** (deadzone is only a noise gate — never rescaled).
-  Each move also rides along the **absolute cursor path** — same-screen
-  replay stays bit-perfect raw counts (what games need), while replay on
-  a *different* screen automatically switches to the recorded cursor
-  path, rescaled, bypassing pointer speed/acceleration — so mouse macros
-  survive moving between machines and resolutions.
+  Each move also records the **absolute cursor path**, and by default
+  replay follows that exact path (rescaled across screen sizes),
+  bypassing pointer speed/acceleration — pixel-deterministic on any
+  device, any settings, any machine. For in-game camera look, switch
+  *Replay exact cursor path* off and playback uses the bit-perfect raw
+  counts instead (games read input before acceleration).
 - **Precise replay** — hybrid sleep/busy-wait scheduling with
   TIME_CRITICAL threads lands events within ~1 ms of the recorded
   timestamps even under full game load. Mouse motion replays as genuine
@@ -287,7 +288,7 @@ branding are never touched).
 |---|---|---|
 | **Start delay** (default 3 s) | Grace period after pressing Play. Type any duration (`90`, `1h 30m`, `1:30:05`) or open the clock panel; long delays *schedule* the run — the plan line shows the exact clock time and a countdown ticks on the overlay. | Leave 0 to replay into the focused app instantly; type `2h 30m` to schedule a run for later tonight. |
 | **Delay between repeats** (default 1 s) | Pause after each run when repeating N times or looping forever — same smart field, so time-based repeats are just `1h`. Synced with the main-screen field. | 30 s respawn wait → `30`; run the loop once every hour → `1h`. |
-| **Replay exact cursor path** (default OFF) | ON: mouse motion replays as the recorded absolute cursor positions — bypasses pointer speed/acceleration, pixel-deterministic on any device (touchpads included) and rescales across screens. OFF: raw relative counts — what games need. | Windows' "Enhance pointer precision" makes raw-count replay of hand motion drift **by design** (velocity-dependent curve) → turn this ON for desktop/UI macros; keep OFF for in-game camera look. |
+| **Replay exact cursor path** (default ON) | Mouse motion replays as the recorded absolute cursor positions — bypasses pointer speed/acceleration, pixel-deterministic on any device (touchpads included) and rescales across screens. OFF switches to raw relative counts. | Windows' "Enhance pointer precision" makes raw-count replay of hand motion drift **by design** (velocity-dependent curve) — the default is immune. Turn OFF for in-game camera-look macros: games read raw input *before* acceleration and need the counts. |
 
 ### Global hotkeys
 

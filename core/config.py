@@ -66,10 +66,11 @@ class PlaybackConfig(BaseModel):
     loop_mode: int = Field(default=0, ge=0, le=2)  # once / N times / forever
     loop_count: int = Field(default=5, ge=2, le=9999)
     # Replay the exact recorded cursor path (absolute injection) instead
-    # of raw relative counts. OFF = game-grade raw counts (same-screen);
-    # ON = deterministic positions on ANY pointer device/settings —
-    # the fix for touchpads and machines where relative replay drifts
-    mouse_path_replay: bool = False
+    # of raw relative counts. ON (default) = pixel-deterministic on ANY
+    # pointer device/settings/screen — immune to Windows' velocity-
+    # dependent pointer acceleration. OFF = game-grade raw counts for
+    # in-game camera look (games read input before acceleration)
+    mouse_path_replay: bool = True
 
 
 class AppConfig(BaseModel):

@@ -147,6 +147,18 @@ class SettingsDialog(FramelessDialog):
         h.addWidget(value_label)
         self._setting(section, title, wrap, tip)
 
+    def _check_row(self, section: QVBoxLayout, checkbox: QCheckBox,
+                   tip: str) -> None:
+        """Checkbox row with the same (?) hover-help as every other
+        setting — no row goes unexplained."""
+        checkbox.setToolTip(_rich(tip))
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        row.addWidget(checkbox)
+        row.addWidget(HelpMark(tip))
+        row.addStretch(1)
+        section.addLayout(row)
+
     # ------------------------------------------------------------- sections
     def _build_recording_section(self) -> None:
         s = self._section("Recording")
@@ -206,12 +218,12 @@ class SettingsDialog(FramelessDialog):
         self.touch_mode = QCheckBox("Touch mode")
         self.touch_mode.setChecked(cfg.touch_mode)
         self.touch_mode.toggled.connect(self._apply)
-        self.touch_mode.setToolTip(_rich(
+        self._check_row(
+            s, self.touch_mode,
             "Record taps, drags and swipes as absolute on-screen gestures "
             "and replay them as genuine Windows touch input. Best for "
             "touchscreen apps and UI automation. Leave OFF for games — "
-            "they need the default relative mouse deltas for camera look."))
-        s.addWidget(self.touch_mode)
+            "they need the default relative mouse deltas for camera look.")
 
     def _build_playback_section(self) -> None:
         s = self._section("Playback")
@@ -231,19 +243,18 @@ class SettingsDialog(FramelessDialog):
         self.mouse_path = QCheckBox("Replay exact cursor path")
         self.mouse_path.setChecked(cfg.playback.mouse_path_replay)
         self.mouse_path.toggled.connect(self._apply)
-        self.mouse_path.setToolTip(_rich(
-            "ON: mouse motion replays as the exact recorded cursor "
-            "positions (absolute) — bypasses pointer speed/acceleration "
-            "entirely, so it is pixel-deterministic on ANY device and "
-            "settings, including touchpads, and rescales across screen "
-            "sizes. Use this for desktop/UI macros — especially with "
-            "Windows' 'Enhance pointer precision' enabled, where "
-            "raw-count replay of hand motion ALWAYS drifts (the accel "
-            "curve is velocity-dependent). "
-            "OFF (default): raw relative counts — what games need for "
-            "camera look (games read input before acceleration, so "
-            "they are unaffected by it)."))
-        s.addWidget(self.mouse_path)
+        self._check_row(
+            s, self.mouse_path,
+            "ON (default): mouse motion replays as the exact recorded "
+            "cursor positions (absolute) — bypasses pointer speed and "
+            "acceleration entirely, so it is pixel-deterministic on ANY "
+            "device and settings, including touchpads, and rescales "
+            "across screen sizes. Windows' 'Enhance pointer precision' "
+            "makes raw-count replay of hand motion drift BY DESIGN (its "
+            "accel curve is velocity-dependent) — this mode is immune. "
+            "Turn OFF for game camera-look macros: games read raw "
+            "relative input before acceleration and need the raw "
+            "counts, not cursor positions.")
 
         self.loop_delay = DurationPicker()
         self.loop_delay.setValue(cfg.playback.loop_delay)
@@ -309,13 +320,12 @@ class SettingsDialog(FramelessDialog):
         self.ov_hints = QCheckBox("Show hotkey hints")
         self.ov_hints.setChecked(cfg.overlay.show_hints)
         self.ov_hints.toggled.connect(self._apply)
-        self.ov_hints.setToolTip(
+        self._check_row(
+            s, self.ov_hints,
             "Shows the record/play/stop combos on the overlay. Note: the "
-            "overlay needs the game in Borderless/Windowed mode — exclusive "
-            "fullscreen bypasses the compositor, and no overlay (ours or "
-            "Steam's) can draw over it."
-        )
-        s.addWidget(self.ov_hints)
+            "overlay needs the game in Borderless/Windowed mode — "
+            "exclusive fullscreen bypasses the compositor, and no overlay "
+            "(ours or Steam's) can draw over it.")
 
     def _build_interface_section(self) -> None:
         s = self._section("Interface")
@@ -336,11 +346,11 @@ class SettingsDialog(FramelessDialog):
         self.sounds = QCheckBox("Sound cues")
         self.sounds.setChecked(cfg.sounds)
         self.sounds.toggled.connect(self._apply)
-        self.sounds.setToolTip(_rich(
-            "Short distinct beeps for record start/stop, playback start, "
-            "finish, and abort — so you always know what the app did while "
-            "the game has focus."))
-        s.addWidget(self.sounds)
+        self._check_row(
+            s, self.sounds,
+            "Short distinct beeps for record start/stop, the countdown "
+            "tick, playback start, finish, and abort — so you always "
+            "know what the app did while the game has focus.")
 
     def _build_schemes_section(self) -> None:
         s = self._section("Controller schemes")
