@@ -181,7 +181,122 @@ def test_settings_reset_to_defaults(app, monkeypatch):
     assert dlg.loop_delay.value() == 1.0
 
 
+# -------------------------------------------------------- keyboard layout
+def test_viz_rep_maps_foreign_chars_to_physical_keys():
+    """An Arabic (or any layout's) character must light the physical key
+    that produced it — matched by virtual-key code, not the character."""
+    import ui.live_monitor as lm
+
+    class K:  # pynput KeyCode stand-in: Arabic shin on the physical A key
+        vk = 0x41
+        char = "ش"
+
+    assert lm._viz_rep(K()) == "char:a"
+
+    class K2:  # digit row under any layout
+        vk = 0x31
+        char = "1"
+
+    assert lm._viz_rep(K2()) == "char:1"
+
+
+def test_active_layout_labels_shape():
+    from ui.widgets.keyboard_widget import active_layout_labels
+    _hkl, labels = active_layout_labels()
+    assert labels.get("char:a")  # every letter key has a cap
+    assert all(k.startswith("char:") for k in labels)
+
+
+def test_layout_labels_computed_once_per_hkl(window, monkeypatch):
+    """The 1s poll must be two syscalls: full label maps compute once
+    per distinct layout, then come from cache."""
+    calls = []
+    monkeypatch.setattr(
+        mw_mod, "kb_layout_labels",
+        lambda hkl: (calls.append(hkl), {"char:a": "X"})[1])
+    monkeypatch.setattr(mw_mod, "kb_active_hkl", lambda: 0xABC)
+    win = window
+    win._last_hkl = None
+    win._layout_cache.clear()
+    win._sync_keyboard_layout()
+    win._sync_keyboard_layout()          # same layout: cache hit
+    win._last_hkl = None                 # re-activated layout
+    win._sync_keyboard_layout()
+    assert calls == [0xABC]              # computed exactly once
+
+
+def test_any_layout_simulated_without_switching():
+    """layout_labels works for ANY installed layout handle — simulate
+    Arabic by loading its HKL directly (never activating it)."""
+    import ctypes
+
+    from ui.widgets.keyboard_widget import layout_labels
+    hkl_ar = ctypes.windll.user32.LoadKeyboardLayoutW("00000401", 0)
+    if not hkl_ar:
+        pytest.skip("Arabic layout not installable on this machine")
+    labels = layout_labels(hkl_ar & 0xFFFFFFFF)
+    letter_caps = [labels.get(f"char:{c}") for c in "asdfjkl"]
+    assert all(letter_caps)
+    # The A-row must be ARABIC letters, not Latin fallbacks
+    arabic = [c for c in letter_caps if "؀" <= c[0] <= "ۿ"]
+    assert len(arabic) >= 5, f"expected Arabic caps, got {letter_caps}"
+
+
 # ------------------------------------------------------------- touch taps
+def test_raw_touch_burst_coalescing():
+    """Digitizer reports stream during a contact — only the first after a
+    quiet gap counts as a new tap."""
+    import ui.live_monitor as lm
+    w = object.__new__(lm.RawTouchWatcher)
+    w._last_report = 0.0
+    assert w.note_report(10.0) is True       # first contact
+    assert w.note_report(10.05) is False     # same contact streaming
+    assert w.note_report(10.30) is False
+    assert w.note_report(11.0) is True       # new contact after the gap
+
+
+def test_flagged_click_reports_touch(monkeypatch):
+    """A left click flagged by the hook's dwExtraInfo signature (the
+    Surface path) must count as touch, not mouse."""
+    import ui.live_monitor as lm
+
+    class FakeButton:
+        def __str__(self):
+            return "Button.left"
+
+    class Data:
+        dwExtraInfo = 0xFF515780  # touch signature + touch bit
+
+    mon = lm.LiveInputMonitor()
+    mon._win32_filter(0x0201, Data())
+    assert mon._flagged_touch is True
+    mon._on_click(50, 60, FakeButton(), True)
+    mon._win32_filter(0x0202, Data())
+    mon._on_click(50, 60, FakeButton(), False)
+    snap = mon.snapshot()
+    assert snap["touch_taps"] == [(50, 60)]
+    assert "left" not in snap["mouse_buttons"]
+
+
+def test_raw_watcher_suppresses_phantom_click(monkeypatch):
+    """With the digitizer watcher running, the synthesized click that
+    follows a raw contact is suppressed and NOT double-reported."""
+    import ui.live_monitor as lm
+
+    class FakeButton:
+        def __str__(self):
+            return "Button.left"
+
+    mon = lm.LiveInputMonitor()
+    mon._raw_touch_ok = True
+    mon._on_raw_touch(200, 300)              # digitizer saw the contact
+    mon._on_click(200, 300, FakeButton(), True)   # phantom click follows
+    mon._on_click(200, 300, FakeButton(), False)
+    snap = mon.snapshot()
+    assert snap["touch_taps"] == [(200, 300)]  # exactly once
+    assert "left" not in snap["mouse_buttons"]
+
+
 def test_monitor_reports_touch_taps_not_left_clicks(monkeypatch):
     import ui.live_monitor as lm
 

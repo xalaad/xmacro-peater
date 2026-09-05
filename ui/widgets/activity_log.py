@@ -50,7 +50,9 @@ class ActivityLog(QFrame):
         self.pad_labels: dict[str, str] = {}
         self._last_coalesce: dict[str, float] = {}
         self._trigger_state = {"left": 0.0, "right": 0.0}
-        self._row_height = QFontMetrics(self.font()).height() + 8
+        # +12, not +8: Arabic/other tall scripts fall back to Segoe UI
+        # whose glyphs (and marks) need the extra room to render in full
+        self._row_height = QFontMetrics(self.font()).height() + 12
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -191,7 +193,8 @@ class ActivityLog(QFrame):
         label = QLabel(text)
         label.setStyleSheet(
             f"color: {color.name() if color else self.theme.text};"
-            "font-family: Consolas, monospace; font-size: 12px;"
+            "font-family: Consolas, 'Segoe UI', monospace;"
+            "font-size: 12px;"
             "background: transparent; padding: 0 4px;"
         )
         item.setSizeHint(QSize(10, self._row_height))

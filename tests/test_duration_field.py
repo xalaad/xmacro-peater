@@ -82,9 +82,19 @@ def test_validator_accepts_and_flows(app):
     assert v.validate("90", 2)[0] == QValidator.State.Acceptable
     assert v.validate("1h ", 3)[0] == QValidator.State.Acceptable
     # In-progress typing stays Intermediate, never rejected
-    for partial in ("1:", ".", "", " "):
+    for partial in ("1:", ".", ""):
         assert v.validate(partial, len(partial))[0] \
             == QValidator.State.Intermediate
+
+
+def test_validator_space_discipline(app):
+    """No leading/double spaces, and no space after a trailing 's' —
+    stray Space presses can't pile junk into the field."""
+    v = DurationValidator()
+    for bad in (" 3", "1h  30m", "3s ", "1m 30s ", " "):
+        assert v.validate(bad, len(bad))[0] == QValidator.State.Invalid
+    assert v.validate("1h ", 3)[0] == QValidator.State.Acceptable
+    assert v.validate("30m ", 4)[0] == QValidator.State.Acceptable
 
 
 # ----------------------------------------------------------------- widget
@@ -141,6 +151,15 @@ def test_popup_live_applies(app):
     assert p.field.text() == "1h 30m"
     assert "1h 30m" in pop.preview.text()
     assert "~" in pop.preview.text()  # clock preview for >= 1m
+
+
+def test_commit_and_done_release_focus(app):
+    p = DurationPicker()
+    p.field.setText("90")
+    p._commit_text()
+    assert not p.field.hasFocus()
+    p._popup._done()
+    assert not p.field.hasFocus()
 
 
 def test_blocked_signals_do_not_emit(app):

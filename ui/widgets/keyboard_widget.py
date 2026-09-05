@@ -12,11 +12,73 @@ hundred child widgets, repaints only when state changes.
 """
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from ..theme import Theme
+
+# Physical key map: layout-INDEPENDENT virtual-key codes -> the US char
+# rep each drawn key uses. Lets any keyboard layout (Arabic, Cyrillic,
+# AZERTY, ...) light the right physical key, and drives the live
+# key-cap relabeling below.
+PHYSICAL_VK: dict[int, str] = {
+    **{vk: chr(vk + 32) for vk in range(0x41, 0x5B)},   # A-Z
+    **{vk: chr(vk) for vk in range(0x30, 0x3A)},        # 0-9
+    0xBA: ";", 0xBB: "=", 0xBC: ",", 0xBD: "-", 0xBE: ".",
+    0xBF: "/", 0xC0: "`", 0xDB: "[", 0xDC: "\\", 0xDD: "]", 0xDE: "'",
+}
+
+
+def layout_labels(hkl: int) -> dict[str, str]:
+    """{char-rep: key cap} for ANY installed layout handle, via
+    ToUnicodeEx — the real character each physical key produces (Arabic,
+    Cyrillic, Greek, ...). MapVirtualKeyEx(VK_TO_CHAR) is NOT used: it
+    returns Latin capitals for letter keys on many layouts.
+
+    Flag bit 2 (Win10 1607+) keeps kernel dead-key state untouched; a
+    dead-key result (-1) still yields its own character in the buffer."""
+    if sys.platform != "win32":  # pragma: no cover
+        return {}
+    import ctypes
+    user32 = ctypes.windll.user32
+    buf = ctypes.create_unicode_buffer(8)
+    state = (ctypes.c_ubyte * 256)()
+    labels: dict[str, str] = {}
+    for vk, ch in PHYSICAL_VK.items():
+        sc = user32.MapVirtualKeyExW(vk, 0, hkl)  # MAPVK_VK_TO_VSC
+        n = user32.ToUnicodeEx(vk, sc, state, buf, 8, 1 << 2, hkl)
+        if n == -1:  # dead key: its standalone character is in the buffer
+            n = 1
+        if n > 0:
+            text = buf.value[:n]
+            if text and ord(text[0]) >= 32:
+                labels[f"char:{ch}"] = text.upper() or text
+    return labels
+
+
+def active_layout_hkl() -> int:
+    """Layout handle of the FOREGROUND window — two syscalls, no more.
+    The per-second poll checks only this; label maps are computed once
+    per distinct layout and cached."""
+    if sys.platform != "win32":  # pragma: no cover
+        return 0
+    import ctypes
+    user32 = ctypes.windll.user32
+    hwnd = user32.GetForegroundWindow()
+    tid = user32.GetWindowThreadProcessId(hwnd, None)
+    hkl = user32.GetKeyboardLayout(tid) & 0xFFFFFFFF
+    if not hkl:  # foreign-process edge case: use our own thread's layout
+        hkl = user32.GetKeyboardLayout(0) & 0xFFFFFFFF
+    return hkl
+
+
+def active_layout_labels() -> tuple[int, dict[str, str]]:
+    """(active layout handle, labels) for the foreground window."""
+    hkl = active_layout_hkl()
+    return hkl, layout_labels(hkl) if hkl else {}
 
 # (label, rep, x, y, w, h) in key units. Blocks:
 #   main 0..15 · nav 15.5..18.5 · numpad 19..23  — 6.25 rows tall
@@ -141,7 +203,14 @@ class KeyboardWidget(QWidget):
         self._held: set[str] = set()
         self._pulse: dict[str, float] = {}     # rep -> 0..1 fading intensity
         self._heat: dict[str, int] = {}        # rep -> press count
+        self._labels: dict[str, str] = {}      # rep -> active-layout cap
         self.setMinimumSize(560, 170)
+
+    def set_layout_labels(self, labels: dict[str, str]) -> None:
+        """Relabel the char key caps for the active keyboard layout."""
+        if labels != self._labels:
+            self._labels = dict(labels)
+            self.update()
 
     def set_theme(self, theme: Theme) -> None:
         self.theme = theme
@@ -214,9 +283,20 @@ class KeyboardWidget(QWidget):
             p.setPen(QColor("white") if intensity > 0.4
                      and not self.heatmap_mode
                      else QColor(self.theme.text_dim))
-            font.setPointSizeF(max(6.0, min(9.5, unit * 0.34)))
-            p.setFont(font)
-            p.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+            cap = self._labels.get(rep, label)
+            # Non-Latin caps (Arabic, Cyrillic, ...): Consolas has no
+            # glyphs — use Segoe UI, a touch larger, and never clip so
+            # ascenders/marks render in full
+            if any(ord(c) > 0x2FF for c in cap):
+                f2 = QFont("Segoe UI")
+                f2.setPointSizeF(max(7.0, min(11.5, unit * 0.44)))
+                p.setFont(f2)
+            else:
+                font.setPointSizeF(max(6.0, min(9.5, unit * 0.34)))
+                p.setFont(font)
+            p.drawText(rect,
+                       int(Qt.AlignmentFlag.AlignCenter)
+                       | int(Qt.TextFlag.TextDontClip), cap)
 
     def _blend(self, base_hex: str, over_hex: str, alpha: float) -> QColor:
         base, over = QColor(base_hex), QColor(over_hex)

@@ -122,7 +122,15 @@ class DurationValidator(QValidator):
     def validate(self, text: str, pos: int):
         if _ALLOWED_CHARS.fullmatch(text) is None:
             return QValidator.State.Invalid, text, pos
-        if not text.strip():
+        # Space discipline: no leading/double spaces, and none after a
+        # trailing 's' — seconds are always the LAST unit, so nothing
+        # valid can follow (stray Space presses used to pile up there)
+        if text.startswith(" ") or "  " in text:
+            return QValidator.State.Invalid, text, pos
+        stripped = text.rstrip()
+        if text != stripped and stripped.endswith("s"):
+            return QValidator.State.Invalid, text, pos
+        if not stripped:
             return QValidator.State.Intermediate, text, pos
         if parse_duration(text) is not None:
             return QValidator.State.Acceptable, text, pos
@@ -218,9 +226,14 @@ class DurationPopup(QWidget):
         done.setObjectName("accentBtn")
         done.setCursor(Qt.CursorShape.PointingHandCursor)
         done.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        done.clicked.connect(self.hide)
+        done.clicked.connect(self._done)
         bottom.addWidget(done)
         lay.addLayout(bottom)
+
+    def _done(self) -> None:
+        self.hide()
+        # Hand the keyboard back — Space after "Done" must do nothing
+        self._owner.field.clearFocus()
 
     def open_for(self, seconds: float, anchor: QWidget) -> None:
         self.sync_silent(seconds)
@@ -359,6 +372,9 @@ class DurationPicker(QWidget):
             self.setValue(parsed)
             self._sync_field()
         self._popup.hide()
+        # Release the keyboard: a later stray Space must hit the global
+        # guard, not type into this field
+        self.field.clearFocus()
 
     def _open_popup(self) -> None:
         if self._popup.isVisible():

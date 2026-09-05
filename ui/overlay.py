@@ -228,7 +228,7 @@ class MiniOverlay(QWidget):
         self._sync_loop_row()
 
         self.last_line = QLabel("—")
-        self.last_line.setFixedHeight(16)
+        self.last_line.setFixedHeight(19)  # room for tall-script glyphs
         root.addWidget(self.last_line)
 
         self.hints_label = QLabel(hints)

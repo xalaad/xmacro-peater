@@ -134,8 +134,17 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **Honest activity log** — color-tagged per device, filterable, with a
   **Motion** toggle for continuous streams and a master **Log** switch
   to silence it entirely. While idle it narrates what your devices do
-  (`[test] Pad A`, `[test] Touch tap at (x, y)` — real touchscreen taps
-  are detected via the OS touch signature, not mislabeled as clicks).
+  (`[test] Pad A`, `[test] Touch tap at (x, y)`). Touchscreen taps are
+  captured at the **Raw Input digitizer level**, so they register even
+  in touch-native apps like Chrome — where no mouse event ever exists —
+  and are never mislabeled as mouse clicks.
+- **Every keyboard language** — the on-screen keyboards follow the
+  foreground window's layout live: switch to Arabic, Cyrillic, Greek,
+  AZERTY… and the key caps relabel within a second (via `ToUnicodeEx`,
+  so it works for any layout Windows can install); keys light by
+  physical position regardless of language, and events are logged in
+  the active script (`Key ش`). Costs ~2 syscalls per second — full
+  label maps compute once per layout and are cached.
 - **TEST MODE** — a fullscreen live dashboard: full mechanical keyboard
   (with numpad), realistic mouse on a circular stage, controller with
   glowing buttons, stick scopes and trigger bars. Run injection presets,

@@ -106,6 +106,8 @@ from .widgets.activity_log import ActivityLog, is_motion_event
 from .widgets.controller_widget import ControllerWidget
 from .widgets.duration_picker import DurationPicker, format_duration
 from .widgets.keyboard_widget import KeyboardWidget
+from .widgets.keyboard_widget import active_layout_hkl as kb_active_hkl
+from .widgets.keyboard_widget import layout_labels as kb_layout_labels
 from .widgets.mouse_widget import MouseWidget
 from .widgets import recording_list as rl
 from .widgets.recording_list import RecordingRow, SequenceRow
@@ -240,6 +242,9 @@ class MainWindow(QMainWindow):
         self._deck_mode = "rec"
         self._seq_pass_est = None
         self._rec_dur = None
+        self._last_hkl = None
+        self._kb_labels: dict[str, str] = {}
+        self._layout_cache: dict[int, dict[str, str]] = {}
         self._docked = False
         self._dock_side = "right"
         self._drawer_open = True
@@ -2163,6 +2168,7 @@ class MainWindow(QMainWindow):
             if self._conn_check_countdown <= 0:
                 self._connected = self.backend.is_connected()
                 self._update_conn_label(self._connected)
+                self._sync_keyboard_layout()
                 self._conn_check_countdown = self.cfg.ui_fps  # ~1s
             self._conn_check_countdown -= 1
             connected = self._connected
@@ -2171,6 +2177,7 @@ class MainWindow(QMainWindow):
             state, connected = neutral_state(), False
             if self._conn_check_countdown <= 0:
                 self._update_conn_label(False)
+                self._sync_keyboard_layout()
                 self._conn_check_countdown = self.cfg.ui_fps
             self._conn_check_countdown -= 1
 
@@ -2197,14 +2204,34 @@ class MainWindow(QMainWindow):
                 f"Recording… {self.recorder.elapsed:.1f}s, "
                 f"{self.recorder.event_count} events")
 
+    def _sync_keyboard_layout(self) -> None:
+        """Follow the FOREGROUND window's keyboard layout. The ~1s poll
+        costs exactly two syscalls (the layout handle); the full label
+        map is computed via ToUnicodeEx only ONCE per distinct layout
+        ever seen, then served from cache."""
+        hkl = kb_active_hkl()
+        if not hkl or hkl == self._last_hkl:
+            return
+        self._last_hkl = hkl
+        labels = self._layout_cache.get(hkl)
+        if labels is None:
+            labels = kb_layout_labels(hkl)
+            self._layout_cache[hkl] = labels
+        if labels:
+            self._kb_labels = labels
+            self.keyboard_w.set_layout_labels(labels)
+            self.tester_window.keyboard_w.set_layout_labels(labels)
+
     def _track_last_action(self, snap: dict, state: dict) -> None:
         """Overlay 'last action' line + [test] activity entries while idle.
         Presses (keys, clicks, pad buttons, trigger pulls, scrolls) always
         log; continuous motion honors the Activity 'Motion' checkbox."""
         actions: list[tuple[str, str]] = []  # (text, color)
         for rep in snap["key_pulses"]:
-            actions.append(
-                ("Key " + rep.split(":", 1)[1].upper(), self.theme.kb))
+            # Name the key in the ACTIVE layout's language, not English
+            name = (getattr(self, "_kb_labels", {}).get(rep)
+                    or rep.split(":", 1)[1].upper())
+            actions.append(("Key " + name, self.theme.kb))
         for btn in sorted(snap["mouse_buttons"] - self._prev_mouse_buttons):
             actions.append((f"Mouse {btn} click", self.theme.mouse))
         self._prev_mouse_buttons = set(snap["mouse_buttons"])
