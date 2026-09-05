@@ -15,3 +15,5 @@ config/app_config.json
 config/ui_cache/
 .claude/
 
+config/deck_cache.json
+config/.legacy-migrated
