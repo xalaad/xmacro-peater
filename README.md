@@ -120,12 +120,22 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   gestures and replay them as **genuine Windows touch input**
   (`InjectTouchInput`), perfect for touchscreen apps and UI automation;
   falls back to absolute mouse where touch injection isn't available.
+  Gestures are captured straight from the **HID digitizer**, so taps
+  register over *any* app — including touch-native surfaces like Chrome,
+  the taskbar and UWP, where Windows never produces a mouse event at all
+  — with the real contact coordinates from the report (not the cursor,
+  which those apps leave stale) and the hardware **tip switch** marking
+  contact start/end, so a drag that pauses stays one gesture.
+  **Touch and mouse record together in one take**: they are different
+  devices and each is captured from its own source (digitizer vs Raw
+  Input mouse), so a finger tap and a mouse click in the same recording
+  both replay. The toggle appears **only on machines with a touchscreen**
+  and defaults ON there; without a digitizer it is hidden and forced off.
   Every take stores the **dimensions of the screen it was recorded
   on** (whatever they are — no reference resolution). Replaying on the
   same screen uses the exact recorded pixels, untouched; replaying on a
   *different*-sized screen rescales the gestures so taps land on the
-  same relative spots. A real mouse keeps working alongside touch mode:
-  finger events become gestures, mouse events record normally.
+  same relative spots.
 - **Global two-key hotkeys** that work while a game has focus —
   `Ctrl+F9` record, `Ctrl+F10` play, `Ctrl+F11` stop (rebindable; hotkey
   presses are stripped from recordings automatically).
@@ -280,7 +290,7 @@ branding are never touched).
 | **Controller poll rate** (default 125 Hz) | How often the gamepad is sampled while recording. 125 Hz matches a standard pad's own USB report rate. | Leave at 125 Hz; raising to 250 Hz rarely captures more detail but doubles CPU use of the pollers. |
 | **Stick deadzone** (default 8%) | A *radial* noise gate: stick positions inside this circle record as a clean 0 so a worn, drifting stick doesn't flood the file. Values are always stored **raw** — this never rescales what's recorded. | Your left stick drifts slightly at rest and the log fills with tiny axis events → raise to 12–15%. |
 | **Trigger deadzone** (default 2%) | Same gate for the analog triggers: pressure below the level records as fully released. | A hair-trigger pad registers 1–2% pull constantly → keep at 2–5%. |
-| **Touch mode** (default OFF) | Records taps, drags & swipes as absolute on-screen gestures and replays them as **genuine Windows touch**. OFF records relative mouse deltas instead. | ON: automate a touchscreen kiosk app (tap button → drag slider). OFF: record camera-look in a shooter — games need relative deltas. |
+| **Touch mode** (default: ON with a touchscreen, hidden without one) | Records taps, drags & swipes as absolute on-screen gestures — straight from the HID digitizer, so they register over touch-native apps too — and replays them as **genuine Windows touch**. The mouse keeps recording alongside it in the same take. OFF records finger input as relative mouse deltas instead. | ON: automate a touchscreen kiosk app (tap button → drag slider). OFF: record camera-look in a shooter — games need relative deltas. |
 
 ### Playback
 
@@ -371,7 +381,9 @@ picks the visualizer geometry (`xbox` / `ps` / `generic`).
 
 ```
 core/   pure Python, no Qt — events, radial deadzone, drift-corrected
-        pollers, Raw Input capture, playback engine, controller backends
+        pollers, Raw Input capture (mouse 0x01/0x02 and touch digitizer
+        0x0D/0x04, one shared registration), HID contact parsing,
+        playback engine, controller backends
 ui/     PySide6 — frameless chrome, visualizers, overlay, TEST MODE;
         talks to core only through Qt signal bridges
 tools/  precision_test.py — the end-to-end accuracy harness
