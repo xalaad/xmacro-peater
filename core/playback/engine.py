@@ -10,6 +10,7 @@ winmm.timeBeginPeriod(1) active for the whole run (see core.timing).
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -86,6 +87,19 @@ class PlaybackCallbacks:
     on_debug: Callable[[str], None] = lambda line: None
 
 
+def pointer_accel_enabled() -> bool:
+    """Windows 'Enhance pointer precision'. When ON, raw-count replay of
+    HUMAN motion cannot reproduce the original cursor path (the accel
+    curve is velocity-dependent and coalesced counts present different
+    velocities than the live packet stream did)."""
+    if sys.platform != "win32":  # pragma: no cover
+        return False
+    import ctypes
+    params = (ctypes.c_int * 3)()
+    ctypes.windll.user32.SystemParametersInfoW(0x0003, 0, params, 0)
+    return bool(params[2])
+
+
 def replay_debug_summary(original, adapted, screen, force_abs) -> str:
     """One line describing exactly HOW this replay will run — surfaced
     in the activity log and app.log so misbehavior is diagnosable."""
@@ -155,6 +169,13 @@ class PlaybackEngine:
                                    self.macro.screen, self.force_abs_mouse)
         log.info("Playback debug: %s", dbg)
         cb.on_debug(dbg)
+        if (any(e.src == "mouse_move" for e in events)
+                and pointer_accel_enabled()):
+            cb.on_debug(
+                "note: Windows 'Enhance pointer precision' is ON — "
+                "raw-count replay of hand motion will drift. For "
+                "pixel-accurate clicks enable Settings > Playback > "
+                "'Replay exact cursor path' (games still want raw).")
         stats = TimingStats()
         run = 0
         completed = 0

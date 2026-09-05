@@ -287,6 +287,7 @@ branding are never touched).
 |---|---|---|
 | **Start delay** (default 3 s) | Grace period after pressing Play. Type any duration (`90`, `1h 30m`, `1:30:05`) or open the clock panel; long delays *schedule* the run — the plan line shows the exact clock time and a countdown ticks on the overlay. | Leave 0 to replay into the focused app instantly; type `2h 30m` to schedule a run for later tonight. |
 | **Delay between repeats** (default 1 s) | Pause after each run when repeating N times or looping forever — same smart field, so time-based repeats are just `1h`. Synced with the main-screen field. | 30 s respawn wait → `30`; run the loop once every hour → `1h`. |
+| **Replay exact cursor path** (default OFF) | ON: mouse motion replays as the recorded absolute cursor positions — bypasses pointer speed/acceleration, pixel-deterministic on any device (touchpads included) and rescales across screens. OFF: raw relative counts — what games need. | Windows' "Enhance pointer precision" makes raw-count replay of hand motion drift **by design** (velocity-dependent curve) → turn this ON for desktop/UI macros; keep OFF for in-game camera look. |
 
 ### Global hotkeys
 

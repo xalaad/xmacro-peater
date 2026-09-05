@@ -236,9 +236,13 @@ class SettingsDialog(FramelessDialog):
             "positions (absolute) — bypasses pointer speed/acceleration "
             "entirely, so it is pixel-deterministic on ANY device and "
             "settings, including touchpads, and rescales across screen "
-            "sizes. Turn this on if replayed clicks drift off the mark. "
+            "sizes. Use this for desktop/UI macros — especially with "
+            "Windows' 'Enhance pointer precision' enabled, where "
+            "raw-count replay of hand motion ALWAYS drifts (the accel "
+            "curve is velocity-dependent). "
             "OFF (default): raw relative counts — what games need for "
-            "camera look."))
+            "camera look (games read input before acceleration, so "
+            "they are unaffected by it)."))
         s.addWidget(self.mouse_path)
 
         self.loop_delay = DurationPicker()
