@@ -33,109 +33,6 @@ def _click_is_touch() -> bool:  # legacy fallback, kept for tests
     return (info & _MI_SIG_MASK) == _MI_SIG
 
 
-class RawTouchWatcher:
-    """System-wide touchscreen detector via Raw Input (HID digitizer,
-    usage page 0x0D / usage 0x04, RIDEV_INPUTSINK).
-
-    Touch-native apps (Chrome, modern UWP...) consume pointer input and
-    Windows never synthesizes mouse events for them — a mouse hook sees
-    NOTHING. The digitizer's raw reports still flow here for every app.
-    HID report layouts are device-specific, so instead of parsing them we
-    detect report BURSTS: the first report after a quiet gap is a new
-    contact, reported as a tap at the current cursor position (the
-    primary contact drives the cursor)."""
-
-    def __init__(self, on_tap):
-        self.on_tap = on_tap  # on_tap(x, y) — called from the wnd thread
-        self._last_report = 0.0
-        self._hwnd = None
-        self._ready = threading.Event()
-        self._failed = False
-        self._thread: threading.Thread | None = None
-        self._wndproc_ref = None
-
-    def note_report(self, now: float) -> bool:
-        """Burst logic (pure, testable): True when a report starts a NEW
-        contact after a quiet gap."""
-        fresh = (now - self._last_report) > TOUCH_BURST_GAP
-        self._last_report = now
-        return fresh
-
-    def start(self) -> bool:
-        if sys.platform != "win32":
-            return False
-        self._thread = threading.Thread(
-            target=self._message_loop, name="RawTouchWnd", daemon=True)
-        self._thread.start()
-        self._ready.wait(timeout=2.0)
-        return not self._failed and self._hwnd is not None
-
-    def stop(self) -> None:
-        if self._hwnd is not None:
-            from core.capture import raw_mouse as rm
-            rm._user32.PostMessageW(self._hwnd, rm.WM_CLOSE, 0, 0)
-        if self._thread is not None:
-            self._thread.join(timeout=1.0)
-            self._thread = None
-        self._hwnd = None
-
-    def _message_loop(self) -> None:
-        import ctypes
-        from ctypes import wintypes
-
-        from core.capture import raw_mouse as rm
-        try:
-            cls_name = "MacroSuiteRawTouch"
-            self._wndproc_ref = rm.WNDPROC(self._wndproc)
-            wc = rm.WNDCLASSW()
-            wc.lpfnWndProc = self._wndproc_ref
-            wc.lpszClassName = cls_name
-            wc.hInstance = ctypes.windll.kernel32.GetModuleHandleW(None)
-            if not rm._user32.RegisterClassW(ctypes.byref(wc)):
-                raise ctypes.WinError()
-            hwnd = rm._user32.CreateWindowExW(
-                0, cls_name, cls_name, 0, 0, 0, 0, 0,
-                wintypes.HWND(rm.HWND_MESSAGE), None, wc.hInstance, None)
-            if not hwnd:
-                raise ctypes.WinError()
-            rid = rm.RAWINPUTDEVICE(0x0D, 0x04, rm.RIDEV_INPUTSINK, hwnd)
-            if not rm._user32.RegisterRawInputDevices(
-                    ctypes.byref(rid), 1, ctypes.sizeof(rm.RAWINPUTDEVICE)):
-                raise ctypes.WinError()
-            self._hwnd = hwnd
-            self._ready.set()
-
-            msg = wintypes.MSG()
-            while rm._user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                rm._user32.TranslateMessage(ctypes.byref(msg))
-                rm._user32.DispatchMessageW(ctypes.byref(msg))
-
-            rid = rm.RAWINPUTDEVICE(0x0D, 0x04, rm.RIDEV_REMOVE, None)
-            rm._user32.RegisterRawInputDevices(
-                ctypes.byref(rid), 1, ctypes.sizeof(rm.RAWINPUTDEVICE))
-            rm._user32.DestroyWindow(hwnd)
-            rm._user32.UnregisterClassW(cls_name, wc.hInstance)
-        except OSError as e:
-            log.info("Touch digitizer raw input unavailable: %s", e)
-            self._failed = True
-            self._ready.set()
-
-    def _wndproc(self, hwnd, msg, wparam, lparam):
-        import ctypes
-        from ctypes import wintypes
-
-        from core.capture import raw_mouse as rm
-        if msg == rm.WM_INPUT:
-            if self.note_report(time.monotonic()):
-                pt = wintypes.POINT()
-                ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
-                self.on_tap(pt.x, pt.y)
-            return 0
-        if msg == rm.WM_DESTROY:
-            rm._user32.PostQuitMessage(0)
-            return 0
-        return rm._user32.DefWindowProcW(hwnd, msg, wparam, lparam)
-
 try:
     from pynput import keyboard, mouse
 
@@ -145,6 +42,7 @@ except ImportError:  # pragma: no cover
     PYNPUT_AVAILABLE = False
 
 from core.capture.keyboard_mouse import key_repr
+from core.capture.raw_touch import RawTouchWatcher  # noqa: F401,E402
 
 from .widgets.keyboard_widget import PHYSICAL_VK
 
@@ -182,6 +80,7 @@ class LiveInputMonitor:
         self._touch_active = False
         self._flagged_touch = False   # set per-message by the win32 filter
         self._touch_recent = 0.0      # last raw digitizer report time
+        self._left_down_t = -1e9      # when a left click was recorded
         self._raw_touch_ok = False
         self._raw_touch: RawTouchWatcher | None = None
         self._last: tuple[int, int] | None = None
@@ -276,6 +175,14 @@ class LiveInputMonitor:
         with self._lock:
             self._touch_taps.append((int(x), int(y)))
             self._touch_recent = time.monotonic()
+            # The synthesized click can WIN the race (hook thread fires
+            # before this report is processed) and get recorded as a
+            # mouse click — retract it before the next UI snapshot
+            if ("left" in self._mouse_buttons
+                    and self._touch_recent - self._left_down_t
+                    < TOUCH_CLICK_WINDOW):
+                self._mouse_buttons.discard("left")
+                self._touch_active = True  # route its UP to touch too
 
     def _on_click(self, x, y, button, pressed) -> None:
         name = str(button).split(".")[-1]
@@ -299,6 +206,8 @@ class LiveInputMonitor:
                         self._touch_active = False
                 return
         with self._lock:
+            if name == "left" and pressed:
+                self._left_down_t = time.monotonic()
             (self._mouse_buttons.add if pressed else self._mouse_buttons.discard)(name)
 
     def _on_scroll(self, x, y, dx, dy) -> None:

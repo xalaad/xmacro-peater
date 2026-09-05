@@ -39,6 +39,24 @@ def test_touch_mode_coexists_with_real_mouse():
                       "button": "left"}
 
 
+def test_digitizer_watcher_owns_gestures_when_running():
+    """With the raw digitizer watcher active, promoted touch clicks/moves
+    must NOT double-emit — the watcher is the single gesture source."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True)
+    cap._raw_gestures = object()  # pretend the watcher registered
+    cap._evt_is_touch = True
+    cap._on_click(10, 10, FakeLeft(), True)
+    cap._on_move(20, 20)
+    cap._on_click(20, 20, FakeLeft(), False)
+    assert got == []  # nothing from the promoted path
+    # Real mouse still records normally alongside
+    cap._evt_is_touch = False
+    cap._on_move(100, 100)
+    cap._on_move(110, 105)
+    assert [e["src"] for e in got] == ["mouse_move"]
+
+
 def test_touch_mode_legacy_without_filter():
     """No win32 filter info (flag unknown): everything left-button still
     counts as touch — the old behavior stays for exotic setups."""

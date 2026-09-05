@@ -89,6 +89,24 @@ class KeyboardMouseCapture:
         )
         self._kb_listener.start()
         self._mouse_listener.start()
+        # Touch mode: gestures come straight from the DIGITIZER, so taps
+        # over pointer-native apps (Chrome, taskbar, UWP) record too —
+        # those never synthesize mouse events for the hook to see. The
+        # hook then only contributes the real mouse (unflagged) events.
+        self._raw_gestures = None
+        if self.touch_mode:
+            from .raw_touch import GESTURE_GAP, RawTouchWatcher
+            w = RawTouchWatcher(
+                on_down=lambda x, y: self.emit(
+                    {"src": "touch", "action": "down", "x": x, "y": y}),
+                on_move=lambda x, y: self.emit(
+                    {"src": "touch", "action": "move", "x": x, "y": y}),
+                on_up=lambda x, y: self.emit(
+                    {"src": "touch", "action": "up", "x": x, "y": y}),
+                quiet_gap=GESTURE_GAP,
+            )
+            if w.start():
+                self._raw_gestures = w
 
     def _win32_filter(self, msg, data) -> bool:
         # MUST be bulletproof: pynput calls this even for messages it
@@ -111,6 +129,9 @@ class KeyboardMouseCapture:
         if self._mouse_listener is not None:
             self._mouse_listener.stop()
             self._mouse_listener = None
+        if getattr(self, "_raw_gestures", None) is not None:
+            self._raw_gestures.stop()
+            self._raw_gestures = None
 
     # --- callbacks -------------------------------------------------------
     def _on_press(self, key) -> None:
@@ -130,9 +151,11 @@ class KeyboardMouseCapture:
 
     def _on_move(self, x: int, y: int) -> None:
         if self.touch_mode and self._event_is_touch():
-            # Drag/swipe path: absolute points while the contact is down,
-            # coalesced to ~125Hz so fast swipes don't flood the file
-            if self._touch_down:
+            # With the digitizer watcher running IT records the gesture
+            # (taps over pointer-native apps never even reach here);
+            # this promoted path only serves as the fallback
+            if (getattr(self, "_raw_gestures", None) is None
+                    and self._touch_down):
                 now = time.perf_counter()
                 if now - self._last_touch_move >= 0.008:
                     self._last_touch_move = now
@@ -157,9 +180,12 @@ class KeyboardMouseCapture:
                 and (self._event_is_touch() or self._touch_down)):
             self._touch_down = pressed
             self._last_pos = None
-            self.emit({"src": "touch",
-                       "action": "down" if pressed else "up",
-                       "x": int(x), "y": int(y)})
+            if getattr(self, "_raw_gestures", None) is None:
+                # Fallback only: with the digitizer watcher running, the
+                # gesture is already being recorded from the hardware
+                self.emit({"src": "touch",
+                           "action": "down" if pressed else "up",
+                           "x": int(x), "y": int(y)})
             return
         self.emit({
             "src": "mouse_btn",

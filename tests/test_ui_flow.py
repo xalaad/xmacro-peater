@@ -267,12 +267,55 @@ def test_raw_touch_burst_coalescing():
     """Digitizer reports stream during a contact — only the first after a
     quiet gap counts as a new tap."""
     import ui.live_monitor as lm
-    w = object.__new__(lm.RawTouchWatcher)
-    w._last_report = 0.0
+    w = lm.RawTouchWatcher(quiet_gap=0.35)
     assert w.note_report(10.0) is True       # first contact
     assert w.note_report(10.05) is False     # same contact streaming
     assert w.note_report(10.30) is False
     assert w.note_report(11.0) is True       # new contact after the gap
+
+
+def test_raw_touch_gesture_stream():
+    """Recorder mode: reports become down/move/up with coalescing and a
+    quiet-gap lift."""
+    from core.capture.raw_touch import RawTouchWatcher
+    got = []
+    w = RawTouchWatcher(
+        on_down=lambda x, y: got.append(("down", x, y)),
+        on_move=lambda x, y: got.append(("move", x, y)),
+        on_up=lambda x, y: got.append(("up", x, y)),
+        quiet_gap=0.12)
+    w.handle_report(1.000, 100, 100)   # contact begins
+    w.handle_report(1.004, 105, 104)   # < 8ms: coalesced away
+    w.handle_report(1.010, 110, 108)   # move
+    w.handle_report(1.020, 120, 118)   # move
+    w.check_gap(1.050)                 # still streaming: no lift
+    w.check_gap(1.200)                 # quiet > gap: lift at last pos
+    w.handle_report(2.000, 300, 300)   # NEW contact
+    w.check_gap(2.200)
+    assert got == [("down", 100, 100), ("move", 110, 108),
+                   ("move", 120, 118), ("up", 120, 118),
+                   ("down", 300, 300), ("up", 300, 300)]
+
+
+def test_phantom_click_retracted_when_raw_tap_arrives_late(monkeypatch):
+    """Race: the synthesized click can be recorded BEFORE the digitizer
+    report is processed — the raw tap must retract it."""
+    import ui.live_monitor as lm
+
+    class FakeButton:
+        def __str__(self):
+            return "Button.left"
+
+    mon = lm.LiveInputMonitor()
+    mon._raw_touch_ok = True
+    monkeypatch.setattr(lm, "_click_is_touch", lambda: False)
+    mon._on_click(500, 400, FakeButton(), True)   # click wins the race
+    assert "left" in mon._mouse_buttons           # briefly recorded...
+    mon._on_raw_touch(500, 400)                   # digitizer catches up
+    mon._on_click(500, 400, FakeButton(), False)  # lift routed to touch
+    snap = mon.snapshot()
+    assert snap["touch_taps"] == [(500, 400)]     # exactly one tap
+    assert "left" not in snap["mouse_buttons"]    # click retracted
 
 
 def test_flagged_click_reports_touch(monkeypatch):
