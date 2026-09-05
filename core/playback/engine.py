@@ -83,6 +83,23 @@ class PlaybackCallbacks:
     on_event: Callable[[object], None] = lambda ev: None
     on_finished: Callable[[bool, str], None] = lambda aborted, msg: None
     on_timing: Callable[[float, float], None] = lambda avg, mx: None
+    on_debug: Callable[[str], None] = lambda line: None
+
+
+def replay_debug_summary(original, adapted, screen, force_abs) -> str:
+    """One line describing exactly HOW this replay will run — surfaced
+    in the activity log and app.log so misbehavior is diagnosable."""
+    n_rel = sum(1 for e in adapted if e.src == "mouse_move")
+    n_abs = sum(1 for e in adapted if e.src == "mouse_abs")
+    n_touch = sum(1 for e in adapted if e.src == "touch")
+    from .touch import virtual_screen_rect
+    cur = virtual_screen_rect()
+    return (f"mouse replay={'PATH(abs)' if n_abs and not n_rel else 'RAW(rel)' if n_rel and not n_abs else 'mixed' if n_abs else 'none'}"
+            f" · moves rel={n_rel} abs={n_abs} touch={n_touch}"
+            f" · exact-path setting={'ON' if force_abs else 'off'}"
+            f" · recorded screen={screen or 'none'}"
+            f" · current screen={cur or 'n/a'}"
+            f" · adapted={'YES' if adapted is not original else 'no'}")
 
 
 @dataclass
@@ -134,6 +151,10 @@ class PlaybackEngine:
         # exact cursor path instead of raw counts)
         events = adapt_events(self.macro.events, self.macro.screen,
                               self.force_abs_mouse)
+        dbg = replay_debug_summary(self.macro.events, events,
+                                   self.macro.screen, self.force_abs_mouse)
+        log.info("Playback debug: %s", dbg)
+        cb.on_debug(dbg)
         stats = TimingStats()
         run = 0
         completed = 0
@@ -163,6 +184,14 @@ class PlaybackEngine:
                         stats=stats,
                     )
                     output.release_all()  # nothing sticks between runs
+                    # Per-run cursor drift: where the cursor actually
+                    # ended vs where the run started (relative replays
+                    # drift when pointer settings shape counts unevenly)
+                    if has_mouse:
+                        end = get_cursor_pos()
+                        cb.on_debug(
+                            f"run {run}: cursor "
+                            f"{anchor or 'unanchored'} -> {end}")
                     if aborted:
                         break
                     completed += 1

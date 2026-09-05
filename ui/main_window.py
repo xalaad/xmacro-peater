@@ -270,12 +270,14 @@ class MainWindow(QMainWindow):
         self.pb_bridge.event_played.connect(self._on_played)
         self.pb_bridge.finished.connect(self._on_playback_finished)
         self.pb_bridge.timing.connect(self._on_playback_timing)
+        self.pb_bridge.debug.connect(self._on_engine_debug)
         self.seq_bridge = SequenceBridge(self)
         self.seq_bridge.pass_started.connect(self._on_pass_started)
         self.seq_bridge.step_started.connect(self._on_step_started)
         self.seq_bridge.event_played.connect(self._on_played)
         self.seq_bridge.finished.connect(self._on_playback_finished)
         self.seq_bridge.timing.connect(self._on_playback_timing)
+        self.seq_bridge.debug.connect(self._on_engine_debug)
         self.hk_bridge = HotkeyBridge(self)
         self.hk_bridge.record_toggle.connect(self.toggle_record)
         self.hk_bridge.play_last.connect(self.start_playback)
@@ -1653,6 +1655,12 @@ class MainWindow(QMainWindow):
         self.activity.add_event(ev, prefix="▶ ")
         self._overlay_event_line(ev, prefix="▶ ")
         self.feed_visual_event(ev)
+
+    def _on_engine_debug(self, line: str) -> None:
+        """Replay diagnostics: exactly which mode ran, what was adapted,
+        and per-run cursor drift — in the activity log and app.log."""
+        self.activity.add_line(f"[dbg] {line}",
+                               QColor(self.theme.text_dim))
 
     def _on_playback_timing(self, avg: float, mx: float) -> None:
         self.stats.setText(
