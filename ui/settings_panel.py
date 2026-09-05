@@ -228,6 +228,19 @@ class SettingsDialog(FramelessDialog):
             "screen shows the exact clock time. Set 0 to start instantly.",
         )
 
+        self.mouse_path = QCheckBox("Replay exact cursor path")
+        self.mouse_path.setChecked(cfg.playback.mouse_path_replay)
+        self.mouse_path.toggled.connect(self._apply)
+        self.mouse_path.setToolTip(_rich(
+            "ON: mouse motion replays as the exact recorded cursor "
+            "positions (absolute) — bypasses pointer speed/acceleration "
+            "entirely, so it is pixel-deterministic on ANY device and "
+            "settings, including touchpads, and rescales across screen "
+            "sizes. Turn this on if replayed clicks drift off the mark. "
+            "OFF (default): raw relative counts — what games need for "
+            "camera look."))
+        s.addWidget(self.mouse_path)
+
         self.loop_delay = DurationPicker()
         self.loop_delay.setValue(cfg.playback.loop_delay)
         self.loop_delay.valueChanged.connect(self._apply)
@@ -375,6 +388,7 @@ class SettingsDialog(FramelessDialog):
             self.touch_mode.setChecked(cfg.touch_mode)
             self.countdown.setValue(cfg.playback.countdown_seconds)
             self.loop_delay.setValue(cfg.playback.loop_delay)
+            self.mouse_path.setChecked(cfg.playback.mouse_path_replay)
             self.hk_record.setText(cfg.hotkeys.record_toggle)
             self.hk_play.setText(cfg.hotkeys.play_last)
             self.hk_abort.setText(cfg.hotkeys.abort_playback)
@@ -406,6 +420,7 @@ class SettingsDialog(FramelessDialog):
             self.hk_abort.text().strip(), "ctrl+f11")
         c.playback.loop_delay = self.loop_delay.value()
         c.playback.countdown_seconds = float(self.countdown.value())
+        c.playback.mouse_path_replay = self.mouse_path.isChecked()
         c.overlay.opacity = self.ov_opacity.value() / 100.0
         c.overlay.show_hints = self.ov_hints.isChecked()
         c.ui_fps = self.fps.value()

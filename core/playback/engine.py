@@ -17,7 +17,7 @@ from typing import Callable
 
 from ..events import MacroFile
 from ..timing import TimerResolution, boost_thread_priority, precise_wait_until
-from .touch import adapt_touch_events
+from .touch import adapt_events
 from .virtual_output import VirtualOutput, get_cursor_pos, set_cursor_pos
 
 log = logging.getLogger(__name__)
@@ -90,6 +90,9 @@ class PlaybackEngine:
     macro: MacroFile
     loop_count: int = 1  # INFINITE (0) = until aborted
     loop_delay: float = 1.0
+    # Replay the exact recorded cursor path (absolute) instead of raw
+    # relative counts — deterministic on touchpads/any pointer settings
+    force_abs_mouse: bool = False
     callbacks: PlaybackCallbacks = field(default_factory=PlaybackCallbacks)
 
     def __post_init__(self):
@@ -127,9 +130,10 @@ class PlaybackEngine:
             cb.on_finished(True, str(e))
             return
 
-        # Different screen than the take was recorded on? Rescale the
-        # absolute touch coordinates so gestures land on the same spots
-        events = adapt_touch_events(self.macro.events, self.macro.screen)
+        # Adapt to the current screen (and, if requested, replay the
+        # exact cursor path instead of raw counts)
+        events = adapt_events(self.macro.events, self.macro.screen,
+                              self.force_abs_mouse)
         stats = TimingStats()
         run = 0
         completed = 0

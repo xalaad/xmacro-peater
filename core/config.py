@@ -65,6 +65,11 @@ class PlaybackConfig(BaseModel):
     countdown_seconds: float = Field(default=3, ge=0, le=86400.0)
     loop_mode: int = Field(default=0, ge=0, le=2)  # once / N times / forever
     loop_count: int = Field(default=5, ge=2, le=9999)
+    # Replay the exact recorded cursor path (absolute injection) instead
+    # of raw relative counts. OFF = game-grade raw counts (same-screen);
+    # ON = deterministic positions on ANY pointer device/settings —
+    # the fix for touchpads and machines where relative replay drifts
+    mouse_path_replay: bool = False
 
 
 class AppConfig(BaseModel):

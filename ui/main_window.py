@@ -1571,6 +1571,7 @@ class MainWindow(QMainWindow):
                 macro,
                 loop_count=loop_count,
                 loop_delay=self.loop_delay.value(),
+                force_abs_mouse=self.cfg.playback.mouse_path_replay,
                 callbacks=self.pb_bridge.callbacks(),
             )
             self.engine.start()
@@ -1611,6 +1612,7 @@ class MainWindow(QMainWindow):
                 steps,
                 loop_count=loop_count,
                 loop_delay=self.loop_delay.value(),
+                force_abs_mouse=self.cfg.playback.mouse_path_replay,
                 callbacks=self.seq_bridge.callbacks(),
             )
             self.engine.start()
@@ -2334,6 +2336,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         QApplication.instance().removeEventFilter(self)
+        self._tick_timer.stop()  # no ticks during teardown
         settings = QSettings("MacroSuite", "InputMacroSuite")
         # Docked: remember the pre-dock geometry, not the glued one, so
         # undocking after a restart lands the window somewhere sane

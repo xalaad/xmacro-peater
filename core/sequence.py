@@ -31,7 +31,7 @@ from typing import Callable
 
 from .events import MacroFile
 from .playback.engine import INFINITE, TimingStats, play_events
-from .playback.touch import adapt_touch_events
+from .playback.touch import adapt_events
 from .playback.virtual_output import (
     VirtualOutput,
     get_cursor_pos,
@@ -143,6 +143,7 @@ class SequenceEngine:
     steps: list[tuple[SequenceStep, MacroFile]]
     loop_count: int = 1  # chain passes; INFINITE (0) = until aborted
     loop_delay: float = 1.0
+    force_abs_mouse: bool = False
     callbacks: SequenceCallbacks = field(default_factory=SequenceCallbacks)
 
     def __post_init__(self):
@@ -190,7 +191,8 @@ class SequenceEngine:
                        for _, m in self.steps]
         # Per-step screen adaptation: each recording carries its own
         # recorded-screen rect
-        step_events = [adapt_touch_events(m.events, m.screen)
+        step_events = [adapt_events(m.events, m.screen,
+                                    self.force_abs_mouse)
                        for _, m in self.steps]
         try:
             with TimerResolution(1):

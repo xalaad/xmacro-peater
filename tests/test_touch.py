@@ -72,6 +72,26 @@ def test_cross_screen_mouse_path_replays_absolute(monkeypatch):
     assert out[2] is events[2]
 
 
+def test_exact_path_mode_converts_even_on_same_screen(monkeypatch):
+    """'Replay exact cursor path' ON: moves become absolute at the
+    recorded positions even when the screen matches — the fix for
+    touchpads and pointer settings where relative counts drift."""
+    from core.playback.touch import adapt_events
+    rect = {"x": 0, "y": 0, "w": 1920, "h": 1080}
+    monkeypatch.setattr(touch_mod, "virtual_screen_rect", lambda: rect)
+    events = [MacroEvent(0.0, "mouse_move",
+                         {"dx": 7, "dy": 3, "px": 800, "py": 600})]
+    out = adapt_events(events, dict(rect), force_abs_mouse=True)
+    assert out[0].src == "mouse_abs"
+    assert (out[0].data["x"], out[0].data["y"]) == (800, 600)
+    # legacy take without screen metadata: identity scaling still works
+    out2 = adapt_events(events, None, force_abs_mouse=True)
+    assert (out2[0].data["x"], out2[0].data["y"]) == (800, 600)
+    # OFF on the same screen: untouched raw counts
+    assert adapt_events(events, dict(rect), force_abs_mouse=False) \
+        is events
+
+
 def test_raw_capture_rides_cursor_path(monkeypatch):
     from core.capture.raw_mouse import RawMouseCapture
     if not RawMouseCapture.available():

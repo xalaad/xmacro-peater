@@ -71,6 +71,7 @@ class PygameBackend(ControllerBackend):
             raise RuntimeError("pygame is not installed")
         self.scheme = scheme
         self._lock = threading.Lock()
+        self._closing = False
         pygame.init()
         pygame.joystick.init()
         self._joy = None
@@ -90,6 +91,17 @@ class PygameBackend(ControllerBackend):
 
     def read(self) -> dict[str, Any]:
         with self._lock:
+            try:
+                return self._read_locked()
+            finally:
+                # pygame.event.pump() dispatches THIS thread's window
+                # messages — which can re-entrantly deliver the app's
+                # closeEvent while we hold the lock. close() defers to
+                # us in that case; finish the job here.
+                if self._closing:
+                    self._close_locked()
+
+    def _read_locked(self) -> dict[str, Any]:
             if self._joy is None:
                 return neutral_state()
             try:
@@ -162,7 +174,20 @@ class PygameBackend(ControllerBackend):
             return devices
 
     def close(self) -> None:
-        with self._lock:
-            if self._joy is not None:
-                self._joy.quit()
-                self._joy = None
+        # Non-blocking: if the lock is held we are either being called
+        # re-entrantly from inside read()'s event pump (same thread —
+        # blocking would DEADLOCK) or a reader is active; either way,
+        # flag it and the active read() closes on its way out.
+        if not self._lock.acquire(blocking=False):
+            self._closing = True
+            return
+        try:
+            self._close_locked()
+        finally:
+            self._lock.release()
+
+    def _close_locked(self) -> None:
+        self._closing = False
+        if self._joy is not None:
+            self._joy.quit()
+            self._joy = None

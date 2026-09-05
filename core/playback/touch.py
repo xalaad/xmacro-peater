@@ -94,6 +94,29 @@ def adapt_touch_events(events, recorded: dict | None):
         return events
     from ..events import TOUCH, MacroEvent
     rx, ry = recorded.get("x", 0), recorded.get("y", 0)
+    return _rescale(events, recorded, cur, rx, ry, TOUCH, MacroEvent)
+
+
+def adapt_events(events, recorded: dict | None,
+                 force_abs_mouse: bool = False):
+    """Full playback adaptation. force_abs_mouse=True replays the exact
+    recorded cursor path even on the SAME screen — absolute injection
+    bypasses pointer speed/acceleration entirely, which makes replay
+    deterministic on devices whose motion doesn't reproduce from raw
+    counts (precision touchpads, exotic pointer settings)."""
+    if not force_abs_mouse:
+        return adapt_touch_events(events, recorded)
+    cur = virtual_screen_rect()
+    if cur is None:
+        return adapt_touch_events(events, recorded)
+    if not recorded or not recorded.get("w") or not recorded.get("h"):
+        recorded = cur  # same-machine take: identity scaling
+    from ..events import TOUCH, MacroEvent
+    rx, ry = recorded.get("x", 0), recorded.get("y", 0)
+    return _rescale(events, recorded, cur, rx, ry, TOUCH, MacroEvent)
+
+
+def _rescale(events, recorded, cur, rx, ry, TOUCH, MacroEvent):
     sx = cur["w"] / recorded["w"]
     sy = cur["h"] / recorded["h"]
 
