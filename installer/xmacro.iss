@@ -1,10 +1,10 @@
 ; XMacro-peater branded installer (Inno Setup 6)
-; Build:  ISCC.exe /DAppVersion=1.2.0 installer\xmacro.iss
+; Build:  ISCC.exe /DAppVersion=1.2.1 installer\xmacro.iss
 ; Expects dist\XMacro-peater.exe (PyInstaller output) and
 ; installer\ViGEmBusSetup_x64.msi (staged by the release workflow).
 
 #ifndef AppVersion
-#define AppVersion "1.2.0"
+#define AppVersion "1.2.1"
 #endif
 
 [Setup]
@@ -51,7 +51,11 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; \
     GroupDescription: "Additional icons:"
 
 [Files]
+; Rooted excludes: user data must NEVER ship, even from a dev machine
+; whose dist folder has been run (CI scrubs too - this is the backstop).
+; Rooted (leading \) so _internal\config\schemes still ships.
 Source: "..\dist\XMacro-peater\*"; DestDir: "{app}"; \
+    Excludes: "\recordings\*,\sequences\*,\config\*,\logs\*"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion

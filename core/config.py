@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 # Single source of truth for the app version. The release workflow
 # checks the pushed tag against this value, and the installer gets it
 # via ISCC /DAppVersion — bump it here and tag v<this> to release.
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 if getattr(sys, "frozen", False):
     # PyInstaller: config/recordings/logs live NEXT TO THE EXE so users
@@ -163,6 +163,14 @@ def migrate_legacy_data() -> None:
     import shutil
     try:
         legacy = Path(os.environ.get("LOCALAPPDATA", "")) / "XMacro-peater"
+        # The install-side marker dies with every reinstall, so the stash
+        # ALSO carries one: without it, each fresh install re-imported
+        # the same old recordings ("the installer keeps shipping my
+        # takes" — it didn't; this did).
+        if (legacy / ".migrated").exists():
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            marker.write_text("done", encoding="utf-8")
+            return
         if legacy.exists() and legacy != APP_DIR:
             old_cfg = legacy / "config" / "app_config.json"
             if old_cfg.exists() and not CONFIG_PATH.exists():
@@ -176,6 +184,7 @@ def migrate_legacy_data() -> None:
                     if not dest.exists():
                         shutil.copy2(f, dest)
             log.info("Migrated legacy data from %s", legacy)
+            (legacy / ".migrated").write_text("done", encoding="utf-8")
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         marker.write_text("done", encoding="utf-8")
     except OSError as e:

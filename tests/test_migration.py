@@ -47,3 +47,24 @@ def test_migration_noop_when_not_frozen(tmp_path, monkeypatch):
     monkeypatch.setattr(cfg_mod, "CONFIG_DIR", tmp_path / "config")
     migrate_legacy_data()
     assert not (tmp_path / "config").exists()
+
+
+def test_reinstall_does_not_remigrate(frozen_env, tmp_path, monkeypatch):
+    """Regression: the marker next to the exe dies with every reinstall,
+    so the legacy stash carries its OWN marker - a fresh install must
+    not re-import recordings the user long since deleted."""
+    app_dir = frozen_env
+    migrate_legacy_data()
+    assert (tmp_path / "localappdata" / "XMacro-peater"
+            / ".migrated").exists()
+
+    # Simulate a REINSTALL: fresh app dir, no install-side marker
+    app2 = tmp_path / "app2"
+    monkeypatch.setattr(cfg_mod, "APP_DIR", app2)
+    monkeypatch.setattr(cfg_mod, "CONFIG_DIR", app2 / "config")
+    monkeypatch.setattr(cfg_mod, "CONFIG_PATH",
+                        app2 / "config" / "app_config.json")
+    monkeypatch.setattr(cfg_mod, "RECORDINGS_DIR", app2 / "recordings")
+    migrate_legacy_data()
+    assert not (app2 / "recordings" / "old_take.json").exists()
+    assert (app2 / "config" / ".legacy-migrated").exists()
