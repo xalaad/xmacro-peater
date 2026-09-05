@@ -70,21 +70,9 @@ class TitleBar(QWidget):
             lay.insertSpacing(self._insert_at, spacing)
             self._insert_at += 1
 
-    def add_stretch_widget(self, widget: QWidget) -> None:
-        """Add after the stretch (right-aligned, before window buttons)."""
-        lay = self.layout()
-        lay.insertWidget(lay.count() - len(self._win_buttons), widget)
-
     # ------------------------------------------------------------------
     def _minimize(self) -> None:
         self.window().showMinimized()
 
     def _close(self) -> None:
         self.window().close()
-
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.logo.setPixmap(
-            make_logo(theme, 22, detailed=False).scaled(
-                22, 22, Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation))

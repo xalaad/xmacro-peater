@@ -49,6 +49,9 @@ GESTURE_GAP = 0.12   # recorder: quiet seconds that end a contact
 MOVE_COALESCE = 0.008
 STUCK_TIMEOUT = 2.0   # safety net if a lift report is ever lost
 
+_RIDEV_DEVNOTIFY = 0x00002000
+_WM_INPUT_DEVICE_CHANGE = 0x00FE
+
 
 class _DigitizerHub:
     """Process-wide owner of the digitizer registration. Subscribers get
@@ -150,7 +153,10 @@ class _DigitizerHub:
                 wintypes.HWND(rm.HWND_MESSAGE), None, self._hinstance, None)
             if not hwnd:
                 raise ctypes.WinError()
-            rid = rm.RAWINPUTDEVICE(0x0D, 0x04, rm.RIDEV_INPUTSINK, hwnd)
+            # DEVNOTIFY: WM_INPUT_DEVICE_CHANGE on digitizer arrival/
+            # removal, so stale per-handle HID maps get invalidated
+            rid = rm.RAWINPUTDEVICE(
+                0x0D, 0x04, rm.RIDEV_INPUTSINK | _RIDEV_DEVNOTIFY, hwnd)
             if not rm._user32.RegisterRawInputDevices(
                     ctypes.byref(rid), 1,
                     ctypes.sizeof(rm.RAWINPUTDEVICE)):
@@ -182,6 +188,11 @@ class _DigitizerHub:
                 self._on_raw_input(lparam)
             except Exception:  # noqa: BLE001 — never kill the window
                 log.exception("touch report handling failed")
+            return 0
+        if msg == _WM_INPUT_DEVICE_CHANGE:
+            # A digitizer came or went; handle values get REUSED, so a
+            # cached map could scale a new device with old ranges
+            hid_touch.clear_cache()
             return 0
         if msg == rm.WM_DESTROY:
             rm._user32.PostQuitMessage(0)

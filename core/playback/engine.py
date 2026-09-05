@@ -60,6 +60,7 @@ def play_events(
     total = len(events)
     if t0 is None:
         t0 = time.perf_counter()
+    bad_seen: set[tuple[str, str]] = set()
     for i, ev in enumerate(events):
         if should_abort():
             return True
@@ -69,7 +70,17 @@ def play_events(
             return True
         if stats is not None:
             stats.add(abs(time.perf_counter() - target))
-        output.send(ev)
+        try:
+            output.send(ev)
+        except Exception as e:  # noqa: BLE001 — corrupt/hand-edited file
+            # One malformed event (unknown key name, bad touch action…)
+            # must not kill the whole run: skip it, log each distinct
+            # problem once, keep the schedule.
+            key = (ev.src, str(e))
+            if key not in bad_seen:
+                bad_seen.add(key)
+                log.warning("Skipping unplayable %s event: %s", ev.src, e)
+            continue
         on_event(ev)
         if i % 16 == 0 or i == total - 1:
             on_progress(i + 1, total)
@@ -146,6 +157,7 @@ class PlaybackEngine:
         # clicks hit the same spots.
         has_mouse = any(e.src.startswith("mouse") for e in events)
         anchor: tuple[int, int] | None = None
+        error: str | None = None
         try:
             with TimerResolution(1):
                 while not self._abort.is_set():
@@ -172,6 +184,9 @@ class PlaybackEngine:
                         precise_wait_until(end, should_abort=self._abort.is_set)
                         if self._abort.is_set():
                             break
+        except Exception as e:  # noqa: BLE001 — the thread must not die
+            log.exception("Playback thread crashed")  # silently
+            error = f"{type(e).__name__}: {e}"
         finally:
             output.close()
             cb.on_timing(stats.avg, stats.mx)
@@ -181,5 +196,10 @@ class PlaybackEngine:
                 "aborted" if aborted else "finished",
                 completed, stats.avg * 1000, stats.mx * 1000,
             )
-            msg = "Aborted" if aborted else f"Finished {completed} run(s)"
-            cb.on_finished(aborted, msg)
+            if error is not None:
+                # A crash must surface as a crash — not as "Finished"
+                cb.on_finished(True, f"Playback error: {error}")
+            else:
+                msg = ("Aborted" if aborted
+                       else f"Finished {completed} run(s)")
+                cb.on_finished(aborted, msg)

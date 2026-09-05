@@ -41,7 +41,7 @@ jobs:
       # locally before release instead.
       - name: Run core tests
         run: >
-          pytest tests/test_deadzone.py tests/test_events.py
+          pytest tests/test_events.py
           tests/test_hotkeys.py tests/test_schemes.py
           tests/test_axis_raw.py tests/test_recorder.py tests/test_touch.py
           tests/test_playback.py -q

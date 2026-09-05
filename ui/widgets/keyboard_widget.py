@@ -1,7 +1,6 @@
 """On-screen full mechanical keyboard: main block + nav cluster + arrows +
 numpad, laid out in real key units and scaled to whatever space is
-available. Keys pulse in the primary accent color on press, with an
-optional press-frequency heatmap mode.
+available. Keys pulse in the primary accent color on press.
 
 Numpad detection isn't possible from hooks, so the full 100% layout is
 always shown (per spec); numpad keys light independently thanks to the
@@ -199,10 +198,8 @@ class KeyboardWidget(QWidget):
     def __init__(self, theme: Theme, parent=None):
         super().__init__(parent)
         self.theme = theme
-        self.heatmap_mode = False
         self._held: set[str] = set()
         self._pulse: dict[str, float] = {}     # rep -> 0..1 fading intensity
-        self._heat: dict[str, int] = {}        # rep -> press count
         self._labels: dict[str, str] = {}      # rep -> active-layout cap
         self.setMinimumSize(560, 170)
 
@@ -212,18 +209,6 @@ class KeyboardWidget(QWidget):
             self._labels = dict(labels)
             self.update()
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.update()
-
-    def set_heatmap(self, on: bool) -> None:
-        self.heatmap_mode = on
-        self.update()
-
-    def reset_heatmap(self) -> None:
-        self._heat.clear()
-        self.update()
-
     def frame(self, held: set[str], pulses: list[str]) -> None:
         """Advance one UI frame; repaints only when something changed."""
         new_held = {fold_rep(r) for r in held}
@@ -232,7 +217,6 @@ class KeyboardWidget(QWidget):
         for rep in pulses:
             rep = fold_rep(rep)
             self._pulse[rep] = 1.0
-            self._heat[rep] = self._heat.get(rep, 0) + 1
         for rep in list(self._pulse):
             self._pulse[rep] -= self.DECAY
             if self._pulse[rep] <= 0:
@@ -248,7 +232,6 @@ class KeyboardWidget(QWidget):
         unit = min(w / TOTAL_W, h / TOTAL_H)
         ox = (w - TOTAL_W * unit) / 2
         oy = (h - TOTAL_H * unit) / 2
-        max_heat = max(self._heat.values(), default=1)
 
         accent = QColor(self.theme.accent)
         font = QFont("Consolas")
@@ -262,26 +245,19 @@ class KeyboardWidget(QWidget):
             pulse = self._pulse.get(rep, 0.0)
             intensity = 1.0 if held else pulse
 
-            if self.heatmap_mode:
-                heat = self._heat.get(rep, 0) / max_heat
-                bg = self._blend(self.theme.surface2, self.theme.danger,
-                                 heat ** 0.6 * 0.85)
-            else:
-                bg = self._blend(self.theme.surface2, accent.name(),
-                                 intensity * 0.9)
+            bg = self._blend(self.theme.surface2, accent.name(),
+                             intensity * 0.9)
 
             # Press pulse: keys sink slightly at full intensity
-            if intensity > 0 and not self.heatmap_mode:
+            if intensity > 0:
                 shrink = 1.2 * intensity
                 rect = rect.adjusted(shrink, shrink, -shrink, -shrink)
 
-            p.setPen(QPen(accent if intensity > 0.3 and not self.heatmap_mode
-                          else border, 1))
+            p.setPen(QPen(accent if intensity > 0.3 else border, 1))
             p.setBrush(bg)
             p.drawRoundedRect(rect, 4, 4)
 
             p.setPen(QColor("white") if intensity > 0.4
-                     and not self.heatmap_mode
                      else QColor(self.theme.text_dim))
             cap = self._labels.get(rep, label)
             # Non-Latin caps (Arabic, Cyrillic, ...): Consolas has no

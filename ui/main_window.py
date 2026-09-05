@@ -1230,15 +1230,23 @@ class MainWindow(QMainWindow):
             color = self.theme.success
         else:
             text, color = "○ not connected", self.theme.text_dim
-        if text != self._conn_text:
+        changed = text != self._conn_text
+        if changed:
             self._conn_text = text
             self.conn_label.setText(text)
             self.conn_label.setStyleSheet(
                 f"color: {color}; font-family: Consolas, monospace;"
                 "font-size: 11px;")
             self.tester_window.set_conn_text(text, color)
-        self._update_scheme_marks()
-        self._update_device_combo()
+        # Scheme marks + device combo poll REAL hardware (XInput sweeps
+        # all 4 slots; empty slots answer slowly right after device
+        # changes). Refresh them on a state change, else only every 3rd
+        # tick — a pad appearing on another scheme still shows within 3s
+        # without paying the sweep every second.
+        self._conn_tick = (getattr(self, "_conn_tick", -1) + 1) % 3
+        if changed or self._conn_tick == 0:
+            self._update_scheme_marks()
+            self._update_device_combo()
 
     def _update_device_combo(self) -> None:
         """Offer a device picker whenever the current backend can see more

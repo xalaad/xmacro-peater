@@ -194,6 +194,7 @@ class SequenceEngine:
         step_events = [adapt_events(m.events, m.screen,
                                     self.force_abs_mouse)
                        for _, m in self.steps]
+        error: str | None = None
         try:
             with TimerResolution(1):
                 pass_no = 0
@@ -244,6 +245,9 @@ class SequenceEngine:
                         end = time.perf_counter() + self.loop_delay
                         precise_wait_until(end,
                                            should_abort=self._abort.is_set)
+        except Exception as e:  # noqa: BLE001 — the thread must not die
+            log.exception("Sequence thread crashed")  # silently
+            error = f"{type(e).__name__}: {e}"
         finally:
             output.close()
             cb.on_timing(stats.avg, stats.mx)
@@ -254,5 +258,9 @@ class SequenceEngine:
                 "aborted" if aborted else "finished",
                 passes_done, stats.avg * 1000, stats.mx * 1000,
             )
-            msg = "Aborted" if aborted else f"Finished {passes_done} pass(es)"
-            cb.on_finished(aborted, msg)
+            if error is not None:
+                cb.on_finished(True, f"Playback error: {error}")
+            else:
+                msg = ("Aborted" if aborted
+                       else f"Finished {passes_done} pass(es)")
+                cb.on_finished(aborted, msg)

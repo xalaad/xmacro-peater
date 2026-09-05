@@ -90,10 +90,6 @@ class ControllerWidget(QWidget):
         self.setMinimumSize(320, 200)
         self.set_art(art, layout)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.update()
-
     def set_art(self, art_filename: str, layout: str = "") -> None:
         path = ASSETS_DIR / art_filename
         if not path.exists():

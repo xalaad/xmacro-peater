@@ -278,14 +278,6 @@ class TesterWindow(QWidget):
             self._stop_preset()
         self.host.start_playback()
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self._logo.setPixmap(make_logo(theme, 20, detailed=False))
-        for w in (self.controller_w, self.stick_l, self.stick_r,
-                  self.trigger_l, self.trigger_r, self.keyboard_w,
-                  self.mouse_w):
-            w.set_theme(theme)
-
     # ------------------------------------------------------------- presets
     def _toggle_preset(self) -> None:
         if self._preset_gen is not None:

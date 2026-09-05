@@ -158,3 +158,50 @@ def test_abort_during_loop_delay(monkeypatch):
     eng.abort()
     eng.join(timeout=2)
     assert time.perf_counter() - t < 1.0, "abort during loop delay must be fast"
+
+
+def test_bad_event_skipped_run_survives(monkeypatch):
+    """A corrupt event (unknown key name) is skipped with a warning; the
+    rest of the run plays and the result is a real finish, not a crash."""
+    outputs = stub_output(monkeypatch)
+
+    class PickyOutput(StubOutput):
+        def send(self, ev):
+            if ev.data.get("key") == "key:no_such_key":
+                raise ValueError("unknown key name 'key:no_such_key'")
+            super().send(ev)
+
+    monkeypatch.setattr(engine_mod, "VirtualOutput",
+                        lambda need_gamepad: outputs.append(
+                            PickyOutput(need_gamepad)) or outputs[-1])
+    events = [
+        MacroEvent(0.00, "kb", {"action": "down", "key": "char:a"}),
+        MacroEvent(0.01, "kb", {"action": "down", "key": "key:no_such_key"}),
+        MacroEvent(0.02, "kb", {"action": "up", "key": "char:a"}),
+    ]
+    done = {}
+    cb = PlaybackCallbacks(
+        on_finished=lambda aborted, msg: done.update(aborted=aborted, msg=msg))
+    eng = PlaybackEngine(MacroFile(events=events), loop_count=1, callbacks=cb)
+    eng.start()
+    eng.join(timeout=5.0)
+    assert done["aborted"] is False
+    assert "Finished 1 run" in done["msg"]
+    sent_keys = [ev.data["key"] for _, ev in outputs[-1].sent]
+    assert sent_keys == ["char:a", "char:a"]
+
+
+def test_crash_reported_as_error_not_finished(monkeypatch):
+    """If the playback thread itself blows up, on_finished must say so."""
+    outputs = stub_output(monkeypatch)
+    monkeypatch.setattr(engine_mod, "play_events",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            RuntimeError("boom")))
+    done = {}
+    cb = PlaybackCallbacks(
+        on_finished=lambda aborted, msg: done.update(aborted=aborted, msg=msg))
+    eng = PlaybackEngine(make_macro(3), loop_count=1, callbacks=cb)
+    eng.start()
+    eng.join(timeout=5.0)
+    assert done["aborted"] is True
+    assert "Playback error" in done["msg"] and "boom" in done["msg"]

@@ -32,10 +32,6 @@ class MouseWidget(QWidget):
         self._scroll_dir = 0
         self.setMinimumSize(180, 180)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.update()
-
     def frame(self, buttons: set[str], move: tuple[int, int], scroll: int) -> None:
         dirty = buttons != self._buttons or bool(scroll)
         self._buttons = buttons

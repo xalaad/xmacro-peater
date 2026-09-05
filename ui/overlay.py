@@ -107,8 +107,7 @@ class TopmostCombo(QComboBox):
 from .theme import Theme
 from .widgets.duration_picker import format_duration
 from .widgets.recording_list import device_badge
-
-IDLE, RECORDING, PLAYING = "Idle", "Recording", "Playing"
+from .widgets.status_pill import IDLE, PLAYING, RECORDING
 
 
 class StateDot(QWidget):
@@ -274,12 +273,6 @@ class MiniOverlay(QWidget):
             "font-family: Consolas, monospace; background: transparent;")
         # Buttons are styled by the global QSS (#overlayBtn) — the same
         # proven path the title-bar MDL2 glyphs use.
-
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self._apply_styles()
-        self.set_state(self._state)
-        self.update()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

@@ -189,10 +189,13 @@ VG_BUTTON_NAMES = {
 
 
 def key_from_repr(rep: str):
-    kind, val = rep.split(":", 1)
+    kind, _, val = rep.partition(":")
     if kind == "char":
         return keyboard.KeyCode.from_char(val)
-    return getattr(keyboard.Key, val)
+    key = getattr(keyboard.Key, val, None)
+    if key is None:
+        raise ValueError(f"unknown key name {rep!r}")
+    return key
 
 
 class VirtualOutput:
@@ -258,6 +261,9 @@ class VirtualOutput:
         """Replay a recorded gesture as genuine touch; fall back to
         absolute mouse if the injection API is unavailable."""
         x, y, action = d["x"], d["y"], d["action"]
+        if action not in ("down", "move", "up"):
+            # File data must never pick an arbitrary attribute below
+            raise ValueError(f"unknown touch action {action!r}")
         if self._touch is None and not self._touch_failed:
             if TouchInjector.available():
                 try:

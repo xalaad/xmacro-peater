@@ -139,6 +139,14 @@ class DeviceMap:
 _cache: dict[int, DeviceMap | None] = {}
 
 
+def clear_cache() -> None:
+    """Forget cached device maps. Windows reuses hDevice handle values
+    after unplug/replug — the hub calls this on WM_INPUT_DEVICE_CHANGE
+    so a NEW digitizer (dock, external touch display) never gets scaled
+    with the OLD device's logical ranges."""
+    _cache.clear()
+
+
 def _build_map(hdevice) -> DeviceMap | None:
     size = ctypes.c_uint(0)
     _user32.GetRawInputDeviceInfoW(hdevice, RIDI_PREPARSEDDATA, None,

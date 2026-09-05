@@ -17,10 +17,6 @@ class TriggerBar(QWidget):
         self._value = 0.0
         self.setMinimumSize(28, 60)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.update()
-
     def get_value(self) -> float:
         return self._value
 

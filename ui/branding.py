@@ -226,9 +226,3 @@ class FooterBar(QWidget):
 
     def mousePressEvent(self, event) -> None:
         AboutDialog(self.cfg, self.theme, self.window()).exec()
-
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        mono = "font-family: Consolas, monospace; font-size: 11px;"
-        for w in self.findChildren(QLabel):
-            w.setStyleSheet(f"{mono} color: {theme.text_dim};")

@@ -433,10 +433,6 @@ QSlider::handle:horizontal:hover {{
 }}
 QSlider::sub-page:horizontal {{ background: {accent_dim}; border-radius: 2px; }}
 
-QSplitter::handle {{ background: {t.border}; }}
-QSplitter::handle:horizontal {{ width: 2px; }}
-QSplitter::handle:vertical {{ height: 2px; }}
-
 QTabWidget::pane {{ border: none; border-top: 1px solid {hair}; }}
 QTabWidget::tab-bar {{ left: 2px; }}
 QTabBar {{ background: transparent; }}
@@ -521,15 +517,6 @@ QListWidget, QListView {{ background: {t.surface}; }}
 QScrollArea {{ background: transparent; border: none; }}
 QScrollArea > QWidget > QWidget {{ background: transparent; }}
 QMessageBox, QInputDialog {{ background: {t.bg}; }}
-
-QProgressBar {{
-    background: {well}; border: none; border-radius: 3px;
-}}
-QProgressBar::chunk {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 {t.accent}, stop:1 {t.accent2});
-    border-radius: 3px;
-}}
 
 QLabel#helpMark {{
     color: {t.accent}; font-weight: 700; font-family: {MONO};

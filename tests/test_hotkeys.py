@@ -61,3 +61,40 @@ def test_trim_handles_all_hotkey_recording():
     reps = combo_reps("ctrl+f9")
     events = [kb(0.01, "up", "key:ctrl_l"), kb(0.02, "down", "key:ctrl_r")]
     assert trim_hotkey_artifacts(events, reps) == []
+
+
+def noise(t):
+    return MacroEvent(t, "mouse_move", {"dx": 1, "dy": 0, "px": 10, "py": 10})
+
+
+def test_trim_survives_interleaved_mouse_noise():
+    """125Hz mouse deltas land BETWEEN the stop combo's keystrokes; the
+    combo must still be stripped or replaying it toggles recording."""
+    reps = combo_reps("ctrl+f9")
+    events = [
+        kb(0.01, "up", "key:ctrl_l"),
+        noise(0.015),                      # noise inside the leading edge
+        kb(0.02, "up", "key:f9"),
+        kb(0.50, "down", "char:w"),
+        kb(0.60, "up", "char:w"),
+        kb(1.00, "down", "key:ctrl_l"),    # stop combo begins
+        noise(1.004),                      # ...mouse keeps streaming
+        noise(1.012),
+        kb(1.05, "down", "key:f9"),
+    ]
+    out = trim_hotkey_artifacts(events, reps)
+    kb_keys = [e.data["key"] for e in out if e.src == "kb"]
+    assert kb_keys == ["char:w", "char:w"]
+    assert sum(1 for e in out if e.src == "mouse_move") == 3  # noise kept
+
+
+def test_trim_old_hotkey_events_untouched():
+    """Hotkey-key events far from the edges are macro content."""
+    reps = combo_reps("ctrl+f9")
+    events = [
+        kb(0.0, "down", "char:a"),
+        kb(2.0, "down", "key:ctrl_l"),    # real ctrl use mid-macro
+        kb(2.1, "up", "key:ctrl_l"),
+        kb(5.0, "down", "char:b"),        # protects the tail
+    ]
+    assert trim_hotkey_artifacts(events, reps) == events

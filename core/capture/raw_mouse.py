@@ -156,6 +156,7 @@ class RawMouseCapture:
         """Start capture; returns False (after cleanup) if registration
         failed, so callers can fall back to pynput deltas."""
         self._stop.clear()
+        self._failed = False  # a past failure must not doom this attempt
         self._msg_thread = threading.Thread(
             target=self._message_loop, name="RawMouseWnd", daemon=True
         )

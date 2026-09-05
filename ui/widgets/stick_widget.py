@@ -30,10 +30,6 @@ class StickWidget(QWidget):
     def sizeHint(self) -> QSize:
         return QSize(150, 150)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.update()
-
     def set_deadzone(self, dz: float) -> None:
         self._deadzone = dz
         self.update()

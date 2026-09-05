@@ -41,10 +41,6 @@ class StatusPill(QWidget):
         self._pulse_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
         self._pulse_anim.setLoopCount(-1)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-        self.set_state(self._state, force=True)
-
     def _state_color(self, state: str) -> QColor:
         return QColor({
             RECORDING: self.theme.danger,

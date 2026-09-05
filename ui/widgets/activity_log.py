@@ -124,9 +124,6 @@ class ActivityLog(QFrame):
         self.setMinimumHeight(48 if self._collapsed else 120)
         self.setMaximumHeight(48 if self._collapsed else 16777215)
 
-    def set_theme(self, theme: Theme) -> None:
-        self.theme = theme
-
     def set_pad_labels(self, labels: dict[str, str]) -> None:
         self.pad_labels = dict(labels)
 
