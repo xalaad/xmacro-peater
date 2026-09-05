@@ -198,7 +198,7 @@ up the ViGEmBus virtual-controller driver** if it's missing — everything
 needed, one click.
 
 > **Requirements:** Windows 10/11, 64-bit — that's it. No GPU needed,
-> ~136 MB on disk, ~160 MB RAM while running, idle CPU ≈ 0%.
+> ~85 MB on disk, ~160 MB RAM while running, idle CPU ≈ 0%.
 
 **Option B — portable:** grab the `-portable.zip`, extract, run
 `XMacro-peater.exe`. Controller output needs the ViGEmBus driver — the
