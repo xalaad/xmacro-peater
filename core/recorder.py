@@ -49,11 +49,15 @@ class MacroRecorder:
 
         # Raw Input gives true hardware mouse deltas (immune to cursor
         # recentering/clamping in games); pynput deltas are the fallback.
-        # Touch mode records absolute gesture paths instead — Raw Input
-        # doesn't see touch, so it stays off there.
+        #
+        # It runs in TOUCH MODE TOO, and that is essential: mouse and
+        # touch are different devices (Raw Input mouse = usage 0x01/0x02,
+        # digitizer = 0x0D/0x04), so each is captured from its own
+        # source. Without this, mouse motion falls back to CURSOR deltas
+        # — and every touch warps the cursor, which forces a baseline
+        # reset, so interleaved mouse movement recorded NOTHING at all.
         self._raw_mouse: RawMouseCapture | None = None
-        if (capture_keyboard_mouse and not touch_mode
-                and RawMouseCapture.available()):
+        if capture_keyboard_mouse and RawMouseCapture.available():
             self._raw_mouse = RawMouseCapture(self._add, hz=poll_hz)
 
         self._kbm: KeyboardMouseCapture | None = None

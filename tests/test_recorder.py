@@ -158,3 +158,32 @@ def test_unknown_signature_is_treated_as_real_mouse():
     cap._evt_is_touch = None              # filter had nothing to say
     cap._on_click(7, 7, FakeLeft(), True)
     assert [e["src"] for e in got] == ["mouse_btn"]
+
+
+def test_raw_mouse_capture_runs_in_touch_mode_too():
+    """Mouse and touch are separate devices and must be captured from
+    separate sources. With Raw Input off in touch mode, mouse motion
+    came from cursor deltas — which touch constantly warps, so every
+    interleaved mouse move was swallowed."""
+    from core.capture.raw_mouse import RawMouseCapture
+    if not RawMouseCapture.available():
+        return
+    rec = MacroRecorder(touch_mode=True, backend=None)
+    assert rec._raw_mouse is not None, "raw mouse must run in touch mode"
+    # pynput must then NOT also emit cursor-delta moves (double capture)
+    assert rec._kbm is not None and rec._kbm.capture_moves is False
+
+
+def test_touch_cursor_warps_cannot_erase_mouse_motion():
+    """Interleaved touch must not reset the mouse baseline any more:
+    with Raw Input owning motion, pynput moves are inert in touch mode."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True,
+                               capture_moves=False)
+    cap._raw_gestures = object()
+    cap._evt_is_touch = True      # finger warps the cursor
+    cap._on_move(1500, 1500)
+    cap._evt_is_touch = False     # real mouse motion follows
+    cap._on_move(100, 100)
+    cap._on_move(140, 130)
+    assert got == []              # raw input reports these, not the hook
