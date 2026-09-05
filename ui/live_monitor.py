@@ -255,10 +255,20 @@ class LiveInputMonitor:
 
     def _win32_filter(self, msg, data) -> bool:
         """Runs inside pynput's low-level hook with the MSLLHOOKSTRUCT —
-        the only place the touch/pen signature is actually readable."""
-        if msg in (0x0201, 0x0202):  # WM_LBUTTONDOWN / WM_LBUTTONUP
-            extra = getattr(data, "dwExtraInfo", 0) & 0xFFFFFFFF
-            self._flagged_touch = (extra & _MI_SIG_MASK) == _MI_SIG
+        the only place the touch/pen signature is actually readable.
+
+        MUST be bulletproof: pynput calls this even for messages it
+        can't convert (horizontal wheel, touchpad gestures) with partial
+        data, and an exception here PERMANENTLY kills the listener —
+        which silently drops all further clicks/scrolls."""
+        try:
+            if msg in (0x0201, 0x0202):  # WM_LBUTTONDOWN / WM_LBUTTONUP
+                extra = getattr(data, "dwExtraInfo", None)
+                if extra is not None:
+                    self._flagged_touch = ((int(extra) & 0xFFFFFFFF
+                                            & _MI_SIG_MASK) == _MI_SIG)
+        except Exception:  # noqa: BLE001 — never let the hook die
+            pass
         return True  # never suppress anything
 
     def _on_raw_touch(self, x: int, y: int) -> None:

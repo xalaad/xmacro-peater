@@ -243,6 +243,26 @@ def test_any_layout_simulated_without_switching():
 
 
 # ------------------------------------------------------------- touch taps
+def test_win32_filters_survive_malformed_hook_data():
+    """pynput invokes the filter for messages it can't convert, passing
+    data with dwExtraInfo=None (or no data at all). A raised exception
+    would PERMANENTLY kill the listener — the filters must shrug."""
+    import ui.live_monitor as lm
+    from core.capture.keyboard_mouse import KeyboardMouseCapture
+
+    class NoneExtra:
+        dwExtraInfo = None
+
+    mon = lm.LiveInputMonitor()
+    assert mon._win32_filter(0x0201, NoneExtra()) is True
+    assert mon._win32_filter(0x020E, None) is True   # horizontal wheel
+    assert mon._win32_filter(0x0200, object()) is True
+
+    cap = KeyboardMouseCapture(lambda e: None, touch_mode=True)
+    assert cap._win32_filter(0x0201, NoneExtra()) is True
+    assert cap._win32_filter(0x020E, None) is True
+
+
 def test_raw_touch_burst_coalescing():
     """Digitizer reports stream during a contact — only the first after a
     quiet gap counts as a new tap."""

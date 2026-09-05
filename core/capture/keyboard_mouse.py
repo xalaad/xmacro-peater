@@ -91,9 +91,17 @@ class KeyboardMouseCapture:
         self._mouse_listener.start()
 
     def _win32_filter(self, msg, data) -> bool:
-        if msg in (_WM_MOUSEMOVE, _WM_LBUTTONDOWN, _WM_LBUTTONUP):
-            extra = getattr(data, "dwExtraInfo", 0) & 0xFFFFFFFF
-            self._evt_is_touch = (extra & _MI_SIG_MASK) == _MI_SIG
+        # MUST be bulletproof: pynput calls this even for messages it
+        # can't convert, with partial data — and an exception here kills
+        # the listener permanently, silently losing all further events
+        try:
+            if msg in (_WM_MOUSEMOVE, _WM_LBUTTONDOWN, _WM_LBUTTONUP):
+                extra = getattr(data, "dwExtraInfo", None)
+                if extra is not None:
+                    self._evt_is_touch = ((int(extra) & 0xFFFFFFFF
+                                           & _MI_SIG_MASK) == _MI_SIG)
+        except Exception:  # noqa: BLE001 — never let the hook die
+            pass
         return True  # never suppress
 
     def stop(self) -> None:
