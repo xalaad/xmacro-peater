@@ -70,6 +70,7 @@ class KeyboardMouseCapture:
         self._mouse_listener = None
         self._last_pos: tuple[int, int] | None = None
         self._touch_down = False
+        self._touch_down_at = -1e9
         self._last_touch_move = 0.0
         # Per-message: was the CURRENT mouse event synthesized from touch?
         # None = unknown (no filter available) -> legacy all-touch behavior
@@ -155,7 +156,7 @@ class KeyboardMouseCapture:
             # (taps over pointer-native apps never even reach here);
             # this promoted path only serves as the fallback
             if (getattr(self, "_raw_gestures", None) is None
-                    and self._touch_down):
+                    and self._touch_pairing()):
                 now = time.perf_counter()
                 if now - self._last_touch_move >= 0.008:
                     self._last_touch_move = now
@@ -174,19 +175,37 @@ class KeyboardMouseCapture:
                            "px": int(x), "py": int(y)})
         self._last_pos = (x, y)
 
+    def _touch_pairing(self) -> bool:
+        """Is an open promoted-touch contact still plausible?
+
+        A tap on a pointer-native surface (Chrome, taskbar) delivers NO
+        release to the hook, so a bare 'contact is down' flag stays
+        stuck forever and starts swallowing REAL mouse clicks. Pair only
+        with a recent press."""
+        return (self._touch_down
+                and time.perf_counter() - self._touch_down_at < 2.0)
+
     def _on_click(self, x, y, button, pressed) -> None:
         name = str(button).split(".")[-1]
-        if (self.touch_mode and name == "left"
-                and (self._event_is_touch() or self._touch_down)):
-            self._touch_down = pressed
-            self._last_pos = None
-            if getattr(self, "_raw_gestures", None) is None:
-                # Fallback only: with the digitizer watcher running, the
-                # gesture is already being recorded from the hardware
+        if self.touch_mode and name == "left":
+            if getattr(self, "_raw_gestures", None) is not None:
+                # The digitizer owns gestures; the hook's only job is to
+                # drop the duplicate Windows synthesizes from touch.
+                # Suppress on a POSITIVE signature only - anything else
+                # is a real mouse and must keep working.
+                if self._evt_is_touch is True:
+                    self._touch_down = pressed
+                    self._touch_down_at = time.perf_counter()
+                    self._last_pos = None
+                    return
+            elif self._event_is_touch() or self._touch_pairing():
+                self._touch_down = pressed
+                self._touch_down_at = time.perf_counter()
+                self._last_pos = None
                 self.emit({"src": "touch",
                            "action": "down" if pressed else "up",
                            "x": int(x), "y": int(y)})
-            return
+                return
         self.emit({
             "src": "mouse_btn",
             "action": "down" if pressed else "up",

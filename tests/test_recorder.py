@@ -129,3 +129,32 @@ def test_recorder_stop_idempotent_and_restartable():
     time.sleep(0.05)
     second = rec.stop()
     assert first.events == [] and second.events == []  # neutral pad = no events
+
+
+def test_mouse_keeps_working_after_an_unreleased_touch():
+    """A tap on a pointer-native surface (Chrome, taskbar) delivers NO
+    release to the hook. The stale 'contact down' state must never
+    swallow later REAL mouse clicks - that killed the mouse whenever
+    touch mode was on."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True)
+    cap._raw_gestures = object()          # digitizer owns gestures
+    cap._evt_is_touch = True              # a finger presses...
+    cap._on_click(10, 10, FakeLeft(), True)
+    # ...and its release never arrives (Chrome consumed the pointer)
+    cap._evt_is_touch = False             # now a REAL mouse click
+    cap._on_click(500, 500, FakeLeft(), True)
+    cap._on_click(500, 500, FakeLeft(), False)
+    assert [e["src"] for e in got] == ["mouse_btn", "mouse_btn"]
+    assert got[0]["action"] == "down" and got[1]["action"] == "up"
+
+
+def test_unknown_signature_is_treated_as_real_mouse():
+    """With the digitizer reporting gestures, only a POSITIVE touch
+    signature may suppress a click; unknown must pass through."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True)
+    cap._raw_gestures = object()
+    cap._evt_is_touch = None              # filter had nothing to say
+    cap._on_click(7, 7, FakeLeft(), True)
+    assert [e["src"] for e in got] == ["mouse_btn"]

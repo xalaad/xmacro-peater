@@ -78,6 +78,7 @@ class LiveInputMonitor:
         self._key_pulses: list[str] = []  # keys pressed since last snapshot
         self._touch_taps: list[tuple[int, int]] = []
         self._touch_active = False
+        self._touch_active_at = -1e9  # promoted-touch contacts expire
         self._flagged_touch = False   # set per-message by the win32 filter
         self._touch_recent = 0.0      # last raw digitizer report time
         self._left_down_t = -1e9      # when a left click was recorded
@@ -194,16 +195,20 @@ class LiveInputMonitor:
             raw_recent = (self._raw_touch_ok and
                           time.monotonic() - self._touch_recent
                           < TOUCH_CLICK_WINDOW)
-            if (self._touch_active
+            # NOTE: _touch_active must EXPIRE. A tap on a
+            # pointer-native surface (Chrome, taskbar) delivers no
+            # release to the hook, so a bare flag stays stuck and starts
+            # swallowing real mouse clicks.
+            pairing = (self._touch_active and time.monotonic()
+                       - self._touch_active_at < TOUCH_CLICK_WINDOW)
+            if (pairing
                     or (pressed and (self._flagged_touch or raw_recent
                                      or _click_is_touch()))):
                 with self._lock:
-                    if pressed:
-                        self._touch_active = True
-                        if not raw_recent:  # no raw watcher: we report
-                            self._touch_taps.append((int(x), int(y)))
-                    else:
-                        self._touch_active = False
+                    self._touch_active = pressed
+                    self._touch_active_at = time.monotonic()
+                    if pressed and not raw_recent:
+                        self._touch_taps.append((int(x), int(y)))
                 return
         with self._lock:
             if name == "left" and pressed:
