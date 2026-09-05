@@ -65,6 +65,40 @@ else:  # pragma: no cover
     _HAS_API = False
 
 
+def virtual_screen_rect() -> dict | None:
+    """The virtual desktop's bounding rect {x, y, w, h} — recorded into
+    every take so absolute touch coordinates can be rescaled when the
+    take replays on a different screen size."""
+    if sys.platform != "win32":  # pragma: no cover
+        return None
+    gm = ctypes.windll.user32.GetSystemMetrics
+    return {"x": gm(76), "y": gm(77), "w": gm(78), "h": gm(79)}
+
+
+def adapt_touch_events(events, recorded: dict | None):
+    """Rescale absolute touch positions from the RECORDING machine's
+    virtual screen to the CURRENT one, so gestures land on the same
+    relative spots regardless of resolution/scaling. No-op when screens
+    match or the take predates screen metadata."""
+    cur = virtual_screen_rect()
+    if (not recorded or not cur or recorded == cur
+            or not recorded.get("w") or not recorded.get("h")):
+        return events
+    from ..events import TOUCH, MacroEvent
+    sx = cur["w"] / recorded["w"]
+    sy = cur["h"] / recorded["h"]
+    out = []
+    for ev in events:
+        if ev.src == TOUCH:
+            d = dict(ev.data)
+            d["x"] = round(cur["x"] + (d["x"] - recorded.get("x", 0)) * sx)
+            d["y"] = round(cur["y"] + (d["y"] - recorded.get("y", 0)) * sy)
+            out.append(MacroEvent(ev.t, ev.src, d))
+        else:
+            out.append(ev)
+    return out
+
+
 def touch_device_present() -> bool:
     """True when the machine has a touch digitizer (touchscreen)."""
     if sys.platform != "win32":

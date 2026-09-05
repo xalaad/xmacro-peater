@@ -3,9 +3,53 @@ files round-trip them, and playback routes them to the touch injector
 (with an absolute-mouse fallback). No real injection happens in tests."""
 import time
 
+import core.playback.touch as touch_mod
 import core.playback.virtual_output as vo
 from core.capture.keyboard_mouse import KeyboardMouseCapture
 from core.events import MacroEvent, MacroFile
+from core.playback.touch import adapt_touch_events
+
+
+def test_macro_file_roundtrips_screen_rect(tmp_path):
+    m = MacroFile(events=[MacroEvent(0.0, "touch",
+                                     {"action": "down", "x": 10, "y": 20})],
+                  screen={"x": 0, "y": 0, "w": 1920, "h": 1080})
+    p = tmp_path / "t.json"
+    m.save(p)
+    loaded = MacroFile.load(p)
+    assert loaded.screen == {"x": 0, "y": 0, "w": 1920, "h": 1080}
+
+
+def test_touch_coords_rescale_to_current_screen(monkeypatch):
+    """A gesture recorded at 1920x1080 must land on the same RELATIVE
+    spots on a 1280x720 laptop."""
+    monkeypatch.setattr(touch_mod, "virtual_screen_rect",
+                        lambda: {"x": 0, "y": 0, "w": 1280, "h": 720})
+    events = [
+        MacroEvent(0.0, "touch", {"action": "down", "x": 960, "y": 540}),
+        MacroEvent(0.1, "touch", {"action": "up", "x": 1920, "y": 1080}),
+        MacroEvent(0.2, "kb", {"action": "down", "key": "char:a"}),
+    ]
+    out = adapt_touch_events(
+        events, {"x": 0, "y": 0, "w": 1920, "h": 1080})
+    assert (out[0].data["x"], out[0].data["y"]) == (640, 360)  # center
+    assert (out[1].data["x"], out[1].data["y"]) == (1280, 720)
+    assert out[2] is events[2]          # non-touch events untouched
+    assert events[0].data["x"] == 960   # originals never mutated
+
+
+def test_touch_coords_untouched_on_same_screen(monkeypatch):
+    rect = {"x": 0, "y": 0, "w": 1920, "h": 1080}
+    monkeypatch.setattr(touch_mod, "virtual_screen_rect", lambda: rect)
+    events = [MacroEvent(0.0, "touch", {"action": "down",
+                                        "x": 5, "y": 6})]
+    assert adapt_touch_events(events, dict(rect)) is events
+
+
+def test_legacy_takes_without_screen_pass_through():
+    events = [MacroEvent(0.0, "touch", {"action": "down",
+                                        "x": 5, "y": 6})]
+    assert adapt_touch_events(events, None) is events
 
 
 class FakeButton:

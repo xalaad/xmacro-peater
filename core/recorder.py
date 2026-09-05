@@ -18,6 +18,7 @@ from .capture.raw_mouse import RawMouseCapture
 from .controllers.base import ControllerBackend
 from .events import MacroEvent, MacroFile
 from .hotkeys import trim_hotkey_artifacts
+from .playback.touch import virtual_screen_rect
 from .timing import TimerResolution
 
 log = logging.getLogger(__name__)
@@ -102,6 +103,9 @@ class MacroRecorder:
             return
         with self._lock:
             self._events.clear()
+        # Stamp the screen so absolute touch coords can be rescaled when
+        # this take replays on a different display
+        self._screen = virtual_screen_rect()
         self._timer_res.__enter__()
         if self._raw_mouse is not None and not self._raw_mouse.start():
             self._raw_mouse = None  # registration failed -> pynput deltas
@@ -136,7 +140,8 @@ class MacroRecorder:
         if self.trim_keys:
             events = trim_hotkey_artifacts(events, self.trim_keys)
         log.info("Recording stopped: %d events", len(events))
-        return MacroFile(events=events, poll_hz=self.poll_hz)
+        return MacroFile(events=events, poll_hz=self.poll_hz,
+                         screen=getattr(self, "_screen", None))
 
     def get_events(self) -> list[MacroEvent]:
         with self._lock:

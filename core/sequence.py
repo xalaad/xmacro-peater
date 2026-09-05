@@ -31,6 +31,7 @@ from typing import Callable
 
 from .events import MacroFile
 from .playback.engine import INFINITE, TimingStats, play_events
+from .playback.touch import adapt_touch_events
 from .playback.virtual_output import (
     VirtualOutput,
     get_cursor_pos,
@@ -187,6 +188,10 @@ class SequenceEngine:
         last_index = step_count - 1
         mouse_flags = [any(e.src.startswith("mouse") for e in m.events)
                        for _, m in self.steps]
+        # Per-step screen adaptation: each recording carries its own
+        # recorded-screen rect
+        step_events = [adapt_touch_events(m.events, m.screen)
+                       for _, m in self.steps]
         try:
             with TimerResolution(1):
                 pass_no = 0
@@ -211,7 +216,7 @@ class SequenceEngine:
                                                step.recording, rep, step.runs)
                             t0 = time.perf_counter()
                             aborted = play_events(
-                                macro.events, output, self._abort.is_set,
+                                step_events[si], output, self._abort.is_set,
                                 on_event=cb.on_event,
                                 on_progress=cb.on_progress,
                                 stats=stats, t0=t0,

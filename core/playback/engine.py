@@ -17,6 +17,7 @@ from typing import Callable
 
 from ..events import MacroFile
 from ..timing import TimerResolution, boost_thread_priority, precise_wait_until
+from .touch import adapt_touch_events
 from .virtual_output import VirtualOutput, get_cursor_pos, set_cursor_pos
 
 log = logging.getLogger(__name__)
@@ -126,7 +127,9 @@ class PlaybackEngine:
             cb.on_finished(True, str(e))
             return
 
-        events = self.macro.events
+        # Different screen than the take was recorded on? Rescale the
+        # absolute touch coordinates so gestures land on the same spots
+        events = adapt_touch_events(self.macro.events, self.macro.screen)
         stats = TimingStats()
         run = 0
         completed = 0

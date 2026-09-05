@@ -63,6 +63,9 @@ class MacroFile:
     poll_hz: int = 125
     created_utc: str = ""
     duration: float = 0.0
+    # Virtual-screen rect {x,y,w,h} at record time — lets playback
+    # rescale absolute touch coords to the current screen
+    screen: dict | None = None
 
     def __post_init__(self) -> None:
         if not self.created_utc:
@@ -92,6 +95,8 @@ class MacroFile:
             "duration": round(self.duration, 5),
             "events": [e.to_dict() for e in self.events],
         }
+        if self.screen is not None:
+            payload["screen"] = self.screen
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(payload), encoding="utf-8")
@@ -112,4 +117,5 @@ class MacroFile:
             poll_hz=int(raw.get("poll_hz", 125)),
             created_utc=str(raw.get("created_utc", "")),
             duration=float(raw.get("duration", 0.0)),
+            screen=raw.get("screen"),
         )

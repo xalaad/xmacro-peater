@@ -114,6 +114,12 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   gestures and replay them as **genuine Windows touch input**
   (`InjectTouchInput`), perfect for touchscreen apps and UI automation;
   falls back to absolute mouse where touch injection isn't available.
+  Every take stores the **dimensions of the screen it was recorded
+  on** (whatever they are — no reference resolution). Replaying on the
+  same screen uses the exact recorded pixels, untouched; replaying on a
+  *different*-sized screen rescales the gestures so taps land on the
+  same relative spots. A real mouse keeps working alongside touch mode:
+  finger events become gestures, mouse events record normally.
 - **Global two-key hotkeys** that work while a game has focus —
   `Ctrl+F9` record, `Ctrl+F10` play, `Ctrl+F11` stop (rebindable; hotkey
   presses are stripped from recordings automatically).
