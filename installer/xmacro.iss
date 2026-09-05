@@ -26,8 +26,10 @@ OutputDir=Output
 OutputBaseFilename=XMacro-peater-Setup-v{#AppVersion}
 SetupIconFile=..\assets\xmacro.ico
 WizardStyle=modern
-WizardImageFile=wizard_large.bmp
-WizardSmallImageFile=wizard_small.bmp
+; Multi-DPI sets: Inno picks the file closest to the actual display
+; scale, so the banner text stays crisp instead of being stretched
+WizardImageFile=wizard_large.bmp,wizard_large_125.bmp,wizard_large_150.bmp,wizard_large_175.bmp,wizard_large_200.bmp
+WizardSmallImageFile=wizard_small.bmp,wizard_small_125.bmp,wizard_small_150.bmp,wizard_small_175.bmp,wizard_small_200.bmp
 LicenseFile=..\LICENSE
 Compression=lzma2/max
 SolidCompression=yes

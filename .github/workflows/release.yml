@@ -50,6 +50,18 @@ jobs:
           --deselect tests/test_playback.py::test_timing_within_2ms
       - name: Build executable
         run: pyinstaller xmacro_peater.spec
+      - name: Scrub user data from the build
+        shell: pwsh
+        run: |
+          # Belt & suspenders: a release must never ship recordings,
+          # sequences, config or logs - the app creates fresh ones
+          # beside the exe on first run.
+          foreach ($d in "recordings", "sequences", "config", "logs") {
+            Remove-Item "dist\XMacro-peater\$d" -Recurse -Force -ErrorAction SilentlyContinue
+          }
+          $leaks = Get-ChildItem dist\XMacro-peater -Recurse -Include *.json |
+            Where-Object { $_.FullName -notmatch '_internal' }
+          if ($leaks) { throw "User data leaked into the build: $($leaks.FullName)" }
       - name: Build branded installer
         shell: pwsh
         run: |

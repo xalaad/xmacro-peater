@@ -1,8 +1,11 @@
 """Generate branded binary assets from the programmatic logo:
 
-- assets/xmacro.ico            multi-size app icon (PNG-compressed ICO)
-- installer/wizard_large.bmp   Inno Setup side banner (164x314)
-- installer/wizard_small.bmp   Inno Setup header mark (55x58)
+- assets/xmacro.ico              multi-size app icon (PNG-compressed ICO)
+- installer/wizard_large*.bmp    Inno Setup side banner at 100/125/150/
+                                 175/200% DPI (Inno 6 picks the closest,
+                                 so text stays crisp instead of being
+                                 stretched from the tiny 100% bitmap)
+- installer/wizard_small*.bmp    Inno Setup header mark, same DPI set
 
 Run after changing the logo or theme:  python tools/make_branding_assets.py
 """
@@ -60,47 +63,68 @@ def main() -> None:
     inst = ROOT / "installer"
     inst.mkdir(exist_ok=True)
 
-    # --- wizard side banner 164x314
-    pm = QPixmap(164, 314)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    grad = QLinearGradient(0, 0, 164, 314)
-    grad.setColorAt(0.0, QColor(theme.bg))
-    grad.setColorAt(1.0, QColor(theme.surface2))
-    p.fillRect(pm.rect(), grad)
-    accent = QLinearGradient(0, 0, 164, 0)
-    accent.setColorAt(0.0, QColor(theme.accent))
-    accent.setColorAt(1.0, QColor(theme.accent2))
-    p.fillRect(0, 306, 164, 8, accent)
-    logo = make_logo(theme, 110, detailed=True)
-    p.drawPixmap((164 - 110) // 2, 34, logo)
-    p.setPen(QColor(theme.text))
-    p.setFont(QFont("Cascadia Mono", 13, QFont.Weight.Bold))
-    p.drawText(QRectF(0, 160, 164, 30), Qt.AlignmentFlag.AlignCenter,
-               "XMacro-peater")
-    p.setPen(QColor(theme.accent))
-    p.setFont(QFont("Consolas", 9))
-    p.drawText(QRectF(0, 188, 164, 20), Qt.AlignmentFlag.AlignCenter,
-               "by Xanonz")
-    p.setPen(QColor(theme.text_dim))
-    p.setFont(QFont("Consolas", 7))
-    p.drawText(QRectF(6, 230, 152, 60),
-               Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-               "record · replay\nkeyboard · mouse · controller")
-    p.end()
-    pm.save(str(inst / "wizard_large.bmp"), "BMP")
-    print("wrote", inst / "wizard_large.bmp")
+    def banner(scale: float) -> QPixmap:
+        """Side banner rendered NATIVELY at the given DPI scale — text is
+        drawn at full size, never upscaled, so it stays sharp."""
+        w, h = round(164 * scale), round(314 * scale)
+        pm = QPixmap(w, h)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        grad = QLinearGradient(0, 0, w, h)
+        grad.setColorAt(0.0, QColor(theme.bg))
+        grad.setColorAt(1.0, QColor(theme.surface2))
+        p.fillRect(pm.rect(), grad)
+        accent = QLinearGradient(0, 0, w, 0)
+        accent.setColorAt(0.0, QColor(theme.accent))
+        accent.setColorAt(1.0, QColor(theme.accent2))
+        p.fillRect(0, round(306 * scale), w, round(8 * scale), accent)
+        logo_px = round(110 * scale)
+        logo = make_logo(theme, logo_px, detailed=True)
+        p.drawPixmap((w - logo_px) // 2, round(34 * scale), logo)
 
-    # --- wizard small mark 55x58
-    pm = QPixmap(55, 58)
-    p = QPainter(pm)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.fillRect(pm.rect(), QColor(theme.bg))
-    logo = make_logo(theme, 48, detailed=True)
-    p.drawPixmap(3, 5, logo)
-    p.end()
-    pm.save(str(inst / "wizard_small.bmp"), "BMP")
-    print("wrote", inst / "wizard_small.bmp")
+        def text(y, height, pt, color, family, s, bold=False):
+            p.setPen(QColor(color))
+            f = QFont(family, max(1, round(pt * scale)))
+            if bold:
+                f.setWeight(QFont.Weight.Bold)
+            p.setFont(f)
+            p.drawText(QRectF(6 * scale, y * scale, w - 12 * scale,
+                              height * scale),
+                       Qt.AlignmentFlag.AlignCenter
+                       | Qt.TextFlag.TextWordWrap, s)
+
+        text(160, 30, 13, theme.text, "Cascadia Mono",
+             "XMacro-peater", bold=True)
+        text(188, 20, 9, theme.accent, "Consolas", "by Xanonz")
+        text(230, 60, 8, theme.text_dim, "Consolas",
+             "record · replay\nkeyboard · mouse · controller")
+        p.end()
+        return pm
+
+    def small_mark(scale: float) -> QPixmap:
+        w, h = round(55 * scale), round(58 * scale)
+        pm = QPixmap(w, h)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(pm.rect(), QColor(theme.bg))
+        logo_px = round(48 * scale)
+        logo = make_logo(theme, logo_px, detailed=True)
+        p.drawPixmap((w - logo_px) // 2, round(5 * scale), logo)
+        p.end()
+        return pm
+
+    # Inno Setup 6 multi-DPI sets: the 100% file keeps its classic name;
+    # the rest are suffixed and listed comma-separated in the .iss
+    scales = ((1.00, ""), (1.25, "_125"), (1.50, "_150"),
+              (1.75, "_175"), (2.00, "_200"))
+    for scale, suffix in scales:
+        path = inst / f"wizard_large{suffix}.bmp"
+        banner(scale).save(str(path), "BMP")
+        print("wrote", path)
+        path = inst / f"wizard_small{suffix}.bmp"
+        small_mark(scale).save(str(path), "BMP")
+        print("wrote", path)
 
 
 if __name__ == "__main__":
