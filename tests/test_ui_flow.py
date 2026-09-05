@@ -135,6 +135,135 @@ def test_touch_toggle_syncs_config_and_recorder(window):
     assert win.cfg.touch_mode is False
 
 
+def test_space_enter_swallowed_off_the_deck_list(window, monkeypatch):
+    """Space/Enter must only act on the deck list — anywhere else in the
+    main window they are consumed before a button can fire."""
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+    win = window
+    space = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space,
+                      Qt.KeyboardModifier.NoModifier)
+    # On a button / the window itself: swallowed
+    assert win.eventFilter(win.record_btn, space) is True
+    assert win.eventFilter(win, space) is True
+    assert win.eventFilter(win.activity.enabled_box, space) is True
+    # On the deck list: plays
+    calls = []
+    monkeypatch.setattr(win, "start_playback", lambda: calls.append(1))
+    assert win.eventFilter(win.rec_list, space) is True
+    assert calls == [1]
+    # In a text field: passes through untouched
+    assert win.eventFilter(win.start_delay.field, space) is False
+
+
+def test_controller_tab_is_last(window):
+    labels = [window.tabs.tabText(i) for i in range(window.tabs.count())]
+    assert labels == ["Keyboard", "Mouse", "Controller"]
+
+
+def test_settings_reset_to_defaults(app, monkeypatch):
+    from core.config import AppConfig
+    monkeypatch.setattr(sp_mod, "confirm", lambda *a, **k: True)
+    cfg = AppConfig()
+    cfg.poll_hz = 500
+    cfg.sounds = False
+    cfg.hotkeys.record_toggle = "alt+r"
+    cfg.playback.loop_delay = 42.0
+    dlg = SettingsDialog(cfg)
+    dlg._reset_defaults()
+    assert cfg.poll_hz == 125
+    assert cfg.sounds is True
+    assert cfg.hotkeys.record_toggle == "ctrl+f9"
+    assert cfg.playback.loop_delay == 1.0
+    # widgets follow the reset
+    assert dlg.poll.value() == 125
+    assert dlg.hk_record.text() == "ctrl+f9"
+    assert dlg.loop_delay.value() == 1.0
+
+
+# ------------------------------------------------------------- touch taps
+def test_monitor_reports_touch_taps_not_left_clicks(monkeypatch):
+    import ui.live_monitor as lm
+
+    class FakeButton:
+        def __str__(self):
+            return "Button.left"
+
+    mon = lm.LiveInputMonitor()
+    monkeypatch.setattr(lm, "_click_is_touch", lambda: True)
+    mon._on_click(120, 340, FakeButton(), True)   # touch tap down
+    mon._on_click(120, 340, FakeButton(), False)  # lift
+    snap = mon.snapshot()
+    assert snap["touch_taps"] == [(120, 340)]
+    assert "left" not in snap["mouse_buttons"]  # NOT a mouse click
+    # A genuine mouse click still reports as one
+    monkeypatch.setattr(lm, "_click_is_touch", lambda: False)
+    mon._on_click(10, 10, FakeButton(), True)
+    snap = mon.snapshot()
+    assert "left" in snap["mouse_buttons"]
+    assert snap["touch_taps"] == []
+
+
+# ------------------------------------------------------------ log toggle
+def test_log_master_toggle_silences_activity(window):
+    win = window
+    win.activity.enabled_box.setChecked(True)
+    n = win.activity.list.count()
+    win.activity.enabled_box.setChecked(False)
+    win.activity.add_line("must not appear")
+    assert win.activity.list.count() == n
+    assert not win.activity.verbose.isEnabled()  # Motion greys out
+    assert win.cfg.log_enabled is False
+    win.activity.enabled_box.setChecked(True)
+    win.activity.add_line("appears")
+    assert win.activity.list.count() == n + 1
+    assert win.cfg.log_enabled is True
+
+
+# ------------------------------------------------------------- side dock
+def test_dock_mode_lifecycle(window):
+    win = window
+    win._enter_dock()
+    try:
+        assert win._docked
+        assert win._right_collapsed
+        assert win.geometry() == win._dock_rect(True)
+        # Handle sits on the inner edge: first in layout iff docked right
+        strip_first = win._content_lay.indexOf(win.collapse_btn) == 0
+        assert strip_first == (win._dock_side == "right")
+        win._toggle_drawer()
+        assert not win._drawer_open
+        assert win._drawer_anim.endValue() == \
+            win._dock_rect(False).topLeft()
+        # Slide-out landing: window leaves, only the edge tab remains
+        win._after_drawer_closed()
+        assert win.isHidden()
+        assert win.dock_tab.isVisible()
+        win._open_drawer()  # tab click
+        assert win._drawer_open
+        assert not win.dock_tab.isVisible()
+        assert not win.isHidden()
+    finally:
+        win._exit_dock()
+    assert not win._docked
+    from PySide6.QtCore import QSettings
+    assert not QSettings("MacroSuite", "InputMacroSuite").value(
+        "docked", False, type=bool)
+
+
+def test_dock_side_is_explicit(window):
+    win = window
+    win._enter_dock("left")
+    try:
+        assert win._dock_side == "left"
+        assert win.geometry() == win._dock_rect(True)
+        win._enter_dock("right")  # re-dock across the screen
+        assert win._dock_side == "right"
+        assert win.geometry() == win._dock_rect(True)
+    finally:
+        win._exit_dock()
+
+
 # ---------------------------------------------------------------- guards
 def test_record_blocked_during_simulation(window):
     win = window

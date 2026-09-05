@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Signal
 
 from core.events import MacroEvent
 from core.playback.engine import PlaybackCallbacks
+from core.sequence import SequenceCallbacks
 
 
 class RecorderBridge(QObject):
@@ -27,6 +28,23 @@ class PlaybackBridge(QObject):
         return PlaybackCallbacks(
             on_run_started=self.run_started.emit,
             on_progress=self.progress.emit,
+            on_event=self.event_played.emit,
+            on_finished=self.finished.emit,
+            on_timing=self.timing.emit,
+        )
+
+
+class SequenceBridge(QObject):
+    pass_started = Signal(int, int)
+    step_started = Signal(int, int, str, int, int)
+    event_played = Signal(object)  # MacroEvent
+    finished = Signal(bool, str)
+    timing = Signal(float, float)
+
+    def callbacks(self) -> SequenceCallbacks:
+        return SequenceCallbacks(
+            on_pass_started=self.pass_started.emit,
+            on_step_started=self.step_started.emit,
             on_event=self.event_played.emit,
             on_finished=self.finished.emit,
             on_timing=self.timing.emit,

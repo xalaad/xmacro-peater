@@ -12,8 +12,24 @@ from __future__ import annotations
 import ctypes
 import sys
 
-from PySide6.QtCore import QPoint, QPointF, QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
+from PySide6.QtCore import (
+    QPoint,
+    QPointF,
+    QSettings,
+    QSize,
+    Qt,
+    QTimer,
+    Signal,
+)
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QGuiApplication,
+    QLinearGradient,
+    QPainter,
+    QPen,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -21,9 +37,48 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSpinBox,
+    QStyledItemDelegate,
     QVBoxLayout,
     QWidget,
 )
+
+HEADER_ROLE = Qt.ItemDataRole.UserRole + 7
+
+
+class _TargetDelegate(QStyledItemDelegate):
+    """Paints the picker's section headers: a small dim title with a
+    rule line continuing after the text to the right edge."""
+
+    def __init__(self, theme, parent=None):
+        super().__init__(parent)
+        self.theme = theme
+
+    def paint(self, p, option, index) -> None:
+        if not index.data(HEADER_ROLE):
+            super().paint(p, option, index)
+            return
+        p.save()
+        f = QFont("Consolas")
+        f.setPixelSize(9)
+        f.setBold(True)
+        f.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
+        p.setFont(f)
+        rect = option.rect.adjusted(10, 0, -10, 0)
+        text = index.data()
+        p.setPen(QColor(self.theme.text_dim))
+        p.drawText(rect, Qt.AlignmentFlag.AlignVCenter
+                   | Qt.AlignmentFlag.AlignLeft, text)
+        tw = QFontMetrics(f).horizontalAdvance(text)
+        y = option.rect.center().y()
+        p.setPen(QPen(QColor(self.theme.border), 1))
+        p.drawLine(rect.left() + tw + 8, y, rect.right(), y)
+        p.restore()
+
+    def sizeHint(self, option, index):
+        size = super().sizeHint(option, index)
+        if index.data(HEADER_ROLE):
+            size.setHeight(20)
+        return size
 
 
 class TopmostCombo(QComboBox):
@@ -34,6 +89,10 @@ class TopmostCombo(QComboBox):
 
     def showPopup(self) -> None:
         super().showPopup()
+        # Qt scrolls the popup to the current item (often the bottom of a
+        # long list) — always open at the top instead. singleShot(0) runs
+        # AFTER Qt's own deferred scroll.
+        QTimer.singleShot(0, self.view().scrollToTop)
         if sys.platform == "win32":
             popup = self.view().window()
             HWND_TOPMOST = -1
@@ -44,6 +103,8 @@ class TopmostCombo(QComboBox):
             )
 
 from .theme import Theme
+from .widgets.duration_picker import format_duration
+from .widgets.recording_list import device_badge
 
 IDLE, RECORDING, PLAYING = "Idle", "Recording", "Playing"
 
@@ -79,6 +140,7 @@ class MiniOverlay(QWidget):
     play_clicked = Signal()
     stop_clicked = Signal()
     expand_clicked = Signal()
+    target_changed = Signal(str, str)  # kind ("rec"/"seq"), file name
 
     def __init__(self, theme: Theme, opacity: float = 0.92,
                  hints: str = "", parent=None):
@@ -116,17 +178,27 @@ class MiniOverlay(QWidget):
         self.rec_btn = self._mini_btn("",
                                       "Start / stop recording (Ctrl+F9)")
         self.rec_btn.clicked.connect(self.record_clicked.emit)
-        self.play_btn = self._mini_btn("", "Play the selected "
-                                                 "recording (Ctrl+F10)")
-        self.play_btn.clicked.connect(self.play_clicked.emit)
-        self.stop_btn = self._mini_btn("", "Stop playback (Ctrl+F11)")
-        self.stop_btn.clicked.connect(self.stop_clicked.emit)
+        # ONE transport button: ▶ play flips to ■ stop while running
+        self.play_btn = self._mini_btn(
+            "", "Play the selection (Ctrl+F10) - becomes Stop "
+            "(Ctrl+F11) while running")
+        self.play_btn.clicked.connect(self._on_transport)
         self.expand_btn = self._mini_btn("\uE740", "Back to the full window")
         self.expand_btn.clicked.connect(self.expand_clicked.emit)
-        for b in (self.rec_btn, self.play_btn, self.stop_btn,
-                  self.expand_btn):
+        for b in (self.rec_btn, self.play_btn, self.expand_btn):
             top.addWidget(b)
         root.addLayout(top)
+
+        # What Play will run — every recording and sequence, pickable
+        # without leaving the game
+        self.target = TopmostCombo()
+        self.target.setToolTip(
+            "What ▶ Play runs — sequences on top, recordings below; "
+            "synced with the main window's selection")
+        self.target.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.target.setItemDelegate(_TargetDelegate(theme, self.target))
+        self.target.currentIndexChanged.connect(self._on_target_changed)
+        root.addWidget(self.target)
 
         # Repeat controls: one line — mode full-width for once/forever,
         # split half/half with the run count for "Repeat N times"
@@ -148,6 +220,9 @@ class MiniOverlay(QWidget):
         loops.addWidget(self.loop_count, 1)
         root.addLayout(loops)
         self.loop_mode.currentIndexChanged.connect(self._sync_loop_row)
+        self.loop_mode.currentIndexChanged.connect(
+            self._refresh_target_tips)
+        self.loop_count.valueChanged.connect(self._refresh_target_tips)
         self._sync_loop_row()
 
         self.last_line = QLabel("—")
@@ -230,23 +305,130 @@ class MiniOverlay(QWidget):
     def _sync_loop_row(self, *_) -> None:
         self.loop_count.setVisible(self.loop_mode.currentIndex() == 1)
 
+    # ------------------------------------------------------ target picker
+    def set_targets(self, items: list[tuple],
+                    current: tuple[str, str] | None,
+                    loop_delay: float = 1.0) -> None:
+        """items: (kind, file name, device kinds, duration seconds) for
+        every recording and sequence. Grouped with sequences always on
+        top under painted headers; each entry shows its device badge and
+        run length, and its tooltip spells out the total completion time
+        with the current repeat settings."""
+        from PySide6.QtGui import QIcon
+        self._loop_delay = loop_delay
+        self._durations: dict[tuple[str, str], float | None] = {}
+        self.target.blockSignals(True)
+        self.target.clear()
+        self.target.setIconSize(QSize(18, 18))
+        groups = (("SEQUENCES",
+                   [it for it in items if it[0] == "seq"]),
+                  ("RECORDINGS",
+                   [it for it in items if it[0] == "rec"]))
+        for title, group in groups:
+            if not group:
+                continue
+            self.target.addItem(title)
+            hdr = self.target.count() - 1
+            self.target.setItemData(hdr, True, HEADER_ROLE)
+            self.target.model().item(hdr).setFlags(Qt.ItemFlag.NoItemFlags)
+            for it in group:
+                kind, name = it[0], it[1]
+                kinds = it[2] if len(it) > 2 else (kind,)
+                secs = it[3] if len(it) > 3 else None
+                self._durations[(kind, name)] = secs
+                label = name.removesuffix(".json")
+                if secs:
+                    label += f"  ·  {format_duration(secs)}"
+                icon = QIcon(device_badge(tuple(kinds), self.theme, 18))
+                self.target.addItem(icon, label, (kind, name))
+        self._refresh_target_tips()
+        idx = self._find_target(*current) if current is not None else -1
+        if idx < 0:  # never leave a disabled header selected
+            for i in range(self.target.count()):
+                if self.target.itemData(i) is not None:
+                    idx = i
+                    break
+        if idx >= 0:
+            self.target.setCurrentIndex(idx)
+        self.target.blockSignals(False)
+
+    def _find_target(self, kind: str, name: str) -> int:
+        # NOTE: QComboBox.findData can't match Python tuples (QVariant
+        # comparison happens C++-side) — compare in Python instead
+        for i in range(self.target.count()):
+            if self.target.itemData(i) == (kind, name):
+                return i
+        return -1
+
+    def set_current_target(self, kind: str, name: str) -> None:
+        idx = self._find_target(kind, name)
+        if idx >= 0 and idx != self.target.currentIndex():
+            self.target.blockSignals(True)
+            self.target.setCurrentIndex(idx)
+            self.target.blockSignals(False)
+
+    def _on_target_changed(self, _index: int) -> None:
+        data = self.target.currentData()
+        if data is not None:
+            self.target_changed.emit(*data)
+
+    def _refresh_target_tips(self) -> None:
+        """Per-item tooltip: ▶ total time to complete with the CURRENT
+        repeat settings — recomputed when the loop controls change."""
+        mode = self.loop_mode.currentIndex()
+        n = self.loop_count.value()
+        delay = getattr(self, "_loop_delay", 1.0)
+        for i in range(self.target.count()):
+            data = self.target.itemData(i)
+            if data is None:
+                continue  # header row
+            secs = getattr(self, "_durations", {}).get(tuple(data))
+            unit = "pass" if data[0] == "seq" else "run"
+            if not secs:
+                tip = "Duration unknown"
+            elif mode == 0:
+                tip = f"▶ plays once — ≈ {format_duration(secs)}"
+            elif mode == 1:
+                total = n * secs + (n - 1) * delay
+                tip = (f"▶ {n} {unit}s ≈ {format_duration(total)} to "
+                       f"complete ({format_duration(secs)} per {unit})")
+            else:
+                tip = (f"▶ loops forever — ≈ {format_duration(secs)} "
+                       f"per {unit}")
+            self.target.setItemData(i, tip, Qt.ItemDataRole.ToolTipRole)
+
     # ------------------------------------------------------------------
     def set_state(self, state: str) -> None:
         self._state = state
-        self.state_label.setText(state)
+        self.state_label.setText(state.upper())
+        color = {RECORDING: self.theme.danger,
+                 PLAYING: self.theme.success}.get(state, self.theme.text)
+        self.state_label.setStyleSheet(
+            f"font-weight: 700; font-size: 12px; color: {color};"
+            "font-family: 'Cascadia Mono', Consolas, monospace;"
+            "letter-spacing: 1px; background: transparent;")
         idle = state == IDLE
         self.loop_mode.setEnabled(idle)
         self.loop_count.setEnabled(idle)
+        self.target.setEnabled(idle)
         self.dot.set_color(QColor({
             RECORDING: self.theme.danger,
             PLAYING: self.theme.success,
         }.get(state, self.theme.text_dim)))
-        self.stop_btn.setEnabled(state == PLAYING)
         self.rec_btn.setEnabled(state != PLAYING)
-        self.play_btn.setEnabled(state == IDLE)
+        # Transport: play while idle, stop while playing
+        self.play_btn.setEnabled(state != RECORDING)
+        self.play_btn.setText(
+            "" if state == PLAYING else "")
         # Record button flips to a stop glyph while recording
         self.rec_btn.setText("" if state == RECORDING else "")
         self.update()
+
+    def _on_transport(self) -> None:
+        if self._state == PLAYING:
+            self.stop_clicked.emit()
+        else:
+            self.play_clicked.emit()
 
     def set_info(self, text: str) -> None:
         self.info_label.setText(text)
@@ -269,13 +451,20 @@ class MiniOverlay(QWidget):
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        bg = QColor(self.theme.surface)
-        bg.setAlphaF(self.bg_opacity)
-        border = QColor(self.theme.border)
-        border.setAlphaF(min(1.0, self.bg_opacity + 0.05))
-        p.setPen(QPen(border, 1))
-        p.setBrush(bg)
-        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 12, 12)
+        # Panel language of the main window: subtle top sheen + a quiet
+        # accent-tinted border, at the user's chosen opacity
+        top = QColor(self.theme.surface2)
+        top.setAlphaF(self.bg_opacity)
+        bottom = QColor(self.theme.surface)
+        bottom.setAlphaF(self.bg_opacity)
+        grad = QLinearGradient(0, 0, 0, self.height())
+        grad.setColorAt(0.0, top)
+        grad.setColorAt(0.25, bottom)
+        accent = QColor(self.theme.accent)
+        accent.setAlphaF(min(1.0, self.bg_opacity * 0.55))
+        p.setPen(QPen(accent, 1))
+        p.setBrush(grad)
+        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 14, 14)
 
     # Dragging ----------------------------------------------------------
     def mousePressEvent(self, event) -> None:

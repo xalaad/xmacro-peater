@@ -33,6 +33,11 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   </tr>
 </table>
 
+![Sequence builder — chain recordings into one precise timeline](docs/screenshots/sequence-builder.png)
+<sub><b>Sequence builder</b> — chain recordings with per-step runs &amp; waits, live pass estimate, drift-free execution.</sub>
+
+<br><br>
+
 ![TEST MODE — fullscreen live input dashboard](docs/screenshots/test-mode.png)
 <sub><b>TEST MODE</b> — every device live, edge to edge: full mechanical keyboard with numpad, controller with per-button glow, analog scopes, and a circular mouse stage.</sub>
 
@@ -45,6 +50,7 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - [✨ Features](#-features)
 - [📦 Install](#-install)
 - [🚀 Quick start](#-quick-start)
+- [🔗 Sequences](#-sequences)
 - [⚙️ Settings explained](#%EF%B8%8F-settings-explained)
 - [⌨️ Default hotkeys](#%EF%B8%8F-default-hotkeys)
 - [🎯 Measured precision](#-measured-precision)
@@ -72,6 +78,11 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **Loop-perfect repeats** — the cursor is anchored at run 1 and restored
   before every subsequent run, so moves trace the same path and clicks hit
   the same pixels in every cycle.
+- **Sequences** — chain recordings into ordered playlists: per step, how
+  many runs and the wait after each run, then repeat the whole chain with
+  the normal loop modes. The chain plays as **one precise timeline**
+  (waits are scheduled from the run's start, so overhead never drifts it),
+  and renaming a recording auto-updates every sequence that uses it.
 - **Any pad in, Xbox pad out** — Xbox via raw XInput; PlayStation and
   generic pads via JSON-defined schemes (adding a controller = adding a
   JSON file). Live per-scheme connection dots and a device switcher when
@@ -83,19 +94,29 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **Global two-key hotkeys** that work while a game has focus —
   `Ctrl+F9` record, `Ctrl+F10` play, `Ctrl+F11` stop (rebindable; hotkey
   presses are stripped from recordings automatically).
-- **Mini overlay** — a translucent always-on-top HUD over your game:
-  state, last action, repeat controls, and record/play/stop buttons.
+- **Three ways to keep it around** — the full window; the **mini
+  overlay** (a translucent always-on-top HUD over your game with state,
+  last action, repeat controls and record/play/stop); or the **side
+  drawer**: pick Dock left / Dock right from the dock menu and the
+  sidebar glues to that screen edge at full height, always on top. The
+  arrow strip slides it away entirely — only a small half-capsule tab
+  stays at the edge; click it to slide the drawer back. The mode and
+  side survive restarts.
 - **TEST MODE** — a fullscreen live dashboard: full mechanical keyboard
   (with numpad), realistic mouse on a circular stage, controller with
   glowing buttons, stick scopes and trigger bars. Run injection presets,
   record temp takes, and replay them on the spot.
 - **Sound cues** — distinct beep motifs for record/play/stop so you always
   know what happened while the game has focus.
-- **Time-based repeats & scheduling** — both delays are hours / minutes /
-  seconds pickers (the clock button collapses them to a single seconds
-  field): schedule a run for later ("start in 2h 30m" — the plan line
-  shows the exact clock time and a live countdown ticks on the overlay)
-  or space repeats hours apart.
+- **Time-based repeats & scheduling** — delays are smart duration fields
+  with a hard input mask (only valid time text can even be typed): enter
+  `90`, `1h 30m` or `1:30:05`, nudge with arrow keys / wheel, or click
+  the field — an h/m/s panel drops underneath (the field keeps focus and
+  mirrors your typing) with a live "lands ~16:42" preview. Schedule a run
+  for later or space repeats hours apart.
+- **Record countdown** — a click-through ticking ring floats over the
+  screen before recording starts (3 s, tunable in Settings), so you can
+  get into position; it blocks nothing and never steals focus.
 - **Custom dark UI** — frameless themed window, green/olive terminal
   aesthetic, everything resizable with a sane minimum.
 
@@ -107,6 +128,9 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 It installs the app with Start Menu/desktop shortcuts **and silently sets
 up the ViGEmBus virtual-controller driver** if it's missing — everything
 needed, one click.
+
+> **Requirements:** Windows 10/11, 64-bit — that's it. No GPU needed,
+> ~136 MB on disk, ~160 MB RAM while running, idle CPU ≈ 0%.
 
 **Option B — portable:** grab the `-portable.zip`, extract, run
 `XMacro-peater.exe`. Controller output needs the ViGEmBus driver — the
@@ -137,8 +161,50 @@ python -m venv .venv
 3. Choose the repeat mode (once / N times / forever + delays — the plan
    line spells out exactly what Play will do) and hit **▶ Play**
    (or `Ctrl+F10`). `Ctrl+F11` aborts and releases every held key/button.
-4. Click **Mini** for the in-game overlay, or **Tester** for the
+4. Click **Mini** for the in-game overlay, **Dock** to glue the sidebar
+   to the screen edge as a slide-away drawer, or **Tester** for the
    fullscreen live input dashboard.
+5. Got several recordings that belong together? Switch the deck to
+   **SEQUENCES** and hit **+** to chain them — see below.
+
+## 🔗 Sequences
+
+Sequences turn recordings into building blocks: record small macros once,
+then compose them into ordered chains instead of re-recording long
+sessions.
+
+Switch the sidebar deck to **SEQUENCES** and press **+** to open the
+builder. Each step is one line: **which recording**, **how many runs**,
+and **the wait after each run**. Drag the grip to reorder steps with the
+mouse, watch the live "one pass ≈ …" estimate, save — the sequence appears as a card and plays
+exactly like a recording: select it and hit **▶ Play** (or `Ctrl+F10`),
+including from the mini overlay.
+
+Missing a step? **● Record step** captures it without leaving the
+builder: the dialog steps aside, the countdown ring ticks down, and when
+you stop (`Ctrl+F9`) the fresh take is appended as the next step.
+
+How a chain executes:
+
+- One **pass** = every step in order, honoring its runs and waits. The
+  **loop controls on the main screen** (once / N times / forever + repeat
+  delay) then repeat the whole pass — the last step's trailing wait is
+  skipped so the pass delay is the only gap between passes.
+- **Perfect time management**: inside a run, events replay through the
+  same sub-millisecond scheduler as single recordings; each wait is
+  scheduled against the *run's start time* (`t0 + duration + wait`), so
+  callback and cleanup overhead never accumulates — an hour-long chain
+  lands its last event where the arithmetic says.
+- **Loop-perfect across steps**: the cursor anchor is captured at the
+  chain's first mouse run and restored before every later one, so
+  relative mouse moves can't drift between steps or passes.
+- The activity log and overlay narrate progress live:
+  `Pass 2/5 · Step 1/3: farm_run.json (run 2/3)`.
+- Sequences are tiny JSON files in `sequences/` next to your recordings —
+  easy to share. A broken chain (deleted recording) refuses to start and
+  names the exact step; **renaming** a recording auto-updates every
+  sequence that references it. Mixed device types are fine — chain a
+  keyboard macro into a controller macro into a touch gesture.
 
 ## ⚙️ Settings explained
 
@@ -149,6 +215,7 @@ Every setting applies and saves the moment you change it. Hover any
 
 | Setting | What it does | Example |
 |---|---|---|
+| **Record countdown** (default 3 s) | Heads-up before recording starts: a **click-through** ticking ring appears over the screen so you can get into position — input keeps flowing, nothing is blocked or focused. Press Record again to cancel. | Set 0 to record instantly; set 5 s when you need time to alt-tab into a game. |
 | **Controller poll rate** (default 125 Hz) | How often the gamepad is sampled while recording. 125 Hz matches a standard pad's own USB report rate. | Leave at 125 Hz; raising to 250 Hz rarely captures more detail but doubles CPU use of the pollers. |
 | **Stick deadzone** (default 8%) | A *radial* noise gate: stick positions inside this circle record as a clean 0 so a worn, drifting stick doesn't flood the file. Values are always stored **raw** — this never rescales what's recorded. | Your left stick drifts slightly at rest and the log fills with tiny axis events → raise to 12–15%. |
 | **Trigger deadzone** (default 2%) | Same gate for the analog triggers: pressure below the level records as fully released. | A hair-trigger pad registers 1–2% pull constantly → keep at 2–5%. |
@@ -158,8 +225,8 @@ Every setting applies and saves the moment you change it. Hover any
 
 | Setting | What it does | Example |
 |---|---|---|
-| **Start delay** (default 3 s) | Grace period after pressing Play, entered as **h / m / s**. Set hours or minutes to *schedule* the run — the plan line shows the exact clock time and a countdown ticks on the overlay. | Leave 0 to replay into the focused app instantly; set `2h 30m` to schedule a run for later tonight. |
-| **Delay between repeats** (default 1 s) | Pause after each run when repeating N times or looping forever, also **h / m / s** for time-based repeats. Synced with the main-screen field. | 30 s respawn wait → `30s`; run the loop once every hour → `1h`. |
+| **Start delay** (default 3 s) | Grace period after pressing Play. Type any duration (`90`, `1h 30m`, `1:30:05`) or open the clock panel; long delays *schedule* the run — the plan line shows the exact clock time and a countdown ticks on the overlay. | Leave 0 to replay into the focused app instantly; type `2h 30m` to schedule a run for later tonight. |
+| **Delay between repeats** (default 1 s) | Pause after each run when repeating N times or looping forever — same smart field, so time-based repeats are just `1h`. Synced with the main-screen field. | 30 s respawn wait → `30`; run the loop once every hour → `1h`. |
 
 ### Global hotkeys
 

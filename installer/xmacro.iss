@@ -1,10 +1,10 @@
 ; XMacro-peater branded installer (Inno Setup 6)
-; Build:  ISCC.exe /DAppVersion=1.0.0 installer\xmacro.iss
+; Build:  ISCC.exe /DAppVersion=1.1.0 installer\xmacro.iss
 ; Expects dist\XMacro-peater.exe (PyInstaller output) and
 ; installer\ViGEmBusSetup_x64.msi (staged by the release workflow).
 
 #ifndef AppVersion
-#define AppVersion "1.0.0"
+#define AppVersion "1.1.0"
 #endif
 
 [Setup]
@@ -41,6 +41,7 @@ DisableWelcomePage=no
 Name: "{app}\config"; Permissions: users-modify
 Name: "{app}\config\schemes"; Permissions: users-modify
 Name: "{app}\recordings"; Permissions: users-modify
+Name: "{app}\sequences"; Permissions: users-modify
 Name: "{app}\logs"; Permissions: users-modify
 
 [Tasks]

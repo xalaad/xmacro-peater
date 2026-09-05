@@ -8,8 +8,24 @@ controller is read directly at UI frame rate (XInput reads are microseconds)
 """
 from __future__ import annotations
 
+import sys
 import threading
 from typing import Any
+
+if sys.platform == "win32":
+    import ctypes
+
+    # Mouse events Windows synthesizes FROM TOUCH/PEN carry this
+    # signature in their extra info; GetMessageExtraInfo() read inside
+    # the hook thread reports it for the message being processed.
+    _MI_SIG_MASK, _MI_SIG = 0xFFFFFF00, 0xFF515700
+
+    def _click_is_touch() -> bool:
+        info = ctypes.windll.user32.GetMessageExtraInfo() & 0xFFFFFFFF
+        return (info & _MI_SIG_MASK) == _MI_SIG
+else:  # pragma: no cover
+    def _click_is_touch() -> bool:
+        return False
 
 try:
     from pynput import keyboard, mouse
@@ -47,6 +63,8 @@ class LiveInputMonitor:
         self._move_dy = 0
         self._scroll = 0
         self._key_pulses: list[str] = []  # keys pressed since last snapshot
+        self._touch_taps: list[tuple[int, int]] = []
+        self._touch_active = False
         self._last: tuple[int, int] | None = None
         self._kb_listener = None
         self._mouse_listener = None
@@ -79,8 +97,10 @@ class LiveInputMonitor:
                 "move": (self._move_dx, self._move_dy),
                 "scroll": self._scroll,
                 "pos": self._last or (0, 0),
+                "touch_taps": self._touch_taps,
             }
             self._key_pulses = []
+            self._touch_taps = []
             self._move_dx = self._move_dy = 0
             self._scroll = 0
         return snap
@@ -106,6 +126,17 @@ class LiveInputMonitor:
 
     def _on_click(self, x, y, button, pressed) -> None:
         name = str(button).split(".")[-1]
+        # Touch taps arrive as synthesized LEFT clicks — report them as
+        # touch, not mouse, so the activity log tells the truth
+        if name == "left" and (self._touch_active or
+                               (pressed and _click_is_touch())):
+            with self._lock:
+                if pressed:
+                    self._touch_active = True
+                    self._touch_taps.append((int(x), int(y)))
+                else:
+                    self._touch_active = False
+            return
         with self._lock:
             (self._mouse_buttons.add if pressed else self._mouse_buttons.discard)(name)
 

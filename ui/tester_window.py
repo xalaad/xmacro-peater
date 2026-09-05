@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -84,9 +85,18 @@ class TesterWindow(QWidget):
         self.conn_label = QLabel("")
         self.conn_label.setObjectName("statsLabel")
         h.addWidget(self.conn_label)
-        h.addSpacing(12)
+        h.addSpacing(20)
 
+        # Two labeled clusters split by a divider: injection presets on
+        # one side, the temp take's record/replay on the other
+        def cluster_label(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setObjectName("popupColTitle")
+            return lbl
+
+        h.addWidget(cluster_label("PRESETS"))
         self.preset_combo = QComboBox()
+        self.preset_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.preset_combo.setMinimumWidth(190)
         presets = [
             ("Mouse circle (real input)", self._preset_mouse_circle),
@@ -103,12 +113,25 @@ class TesterWindow(QWidget):
             "recording); 'visual' presets animate the pad widgets directly."
         )
         h.addWidget(self.preset_combo)
-        self.run_btn = QPushButton("▶ Run")
+        self.run_btn = QPushButton("▶  Run")
+        self.run_btn.setObjectName("accentBtn")
+        self.run_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.run_btn.setToolTip("Run the selected preset")
         self.run_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.run_btn.clicked.connect(self._toggle_preset)
         h.addWidget(self.run_btn)
+
+        h.addSpacing(10)
+        sep = QFrame()
+        sep.setObjectName("headSep")
+        sep.setFixedSize(1, 20)
+        h.addWidget(sep)
+        h.addSpacing(10)
+
+        h.addWidget(cluster_label("TEST TAKE"))
         self.rec_btn = QPushButton("●  Record")
+        self.rec_btn.setObjectName("recordStepBtn")
+        self.rec_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.rec_btn.setToolTip(
             "Record a temp test take — saved as test_take.json and "
             "overwritten by the next test recording. Everything you (or a "
@@ -118,6 +141,8 @@ class TesterWindow(QWidget):
         self.rec_btn.clicked.connect(self._toggle_record)
         h.addWidget(self.rec_btn)
         self.play_btn = QPushButton("▶  Play")
+        self.play_btn.setObjectName("accentBtn")
+        self.play_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.play_btn.setToolTip(
             "Replay the selected recording (after a test recording, that's "
             "your fresh test take) — watch it happen live on every "

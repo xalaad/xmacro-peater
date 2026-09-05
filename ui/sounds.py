@@ -36,6 +36,10 @@ def record_start() -> None:
     _cue([(880, 110), (1320, 110)])       # rising: armed
 
 
+def tick() -> None:
+    _cue([(1180, 35)])                    # short click: countdown second
+
+
 def record_stop() -> None:
     _cue([(1320, 110), (880, 110)])       # falling: saved
 

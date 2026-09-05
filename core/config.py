@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 log = logging.getLogger(__name__)
 
-APP_VERSION = "1.0"
+APP_VERSION = "1.1"
 
 if getattr(sys, "frozen", False):
     # PyInstaller: config/recordings/logs live NEXT TO THE EXE so users
@@ -27,6 +27,7 @@ CONFIG_DIR = APP_DIR / "config"
 CONFIG_PATH = CONFIG_DIR / "app_config.json"
 SCHEMES_DIR = CONFIG_DIR / "schemes"
 RECORDINGS_DIR = APP_DIR / "recordings"
+SEQUENCES_DIR = APP_DIR / "sequences"
 LOGS_DIR = APP_DIR / "logs"
 
 
@@ -68,6 +69,8 @@ class PlaybackConfig(BaseModel):
 
 class AppConfig(BaseModel):
     poll_hz: int = Field(default=125, ge=10, le=1000)
+    # On-screen ticking countdown before a recording starts (settings-only)
+    record_countdown: float = Field(default=3, ge=0, le=60)
     stick_deadzone: float = Field(default=0.08, ge=0.0, lt=1.0)
     trigger_deadzone: float = Field(default=0.02, ge=0.0, lt=1.0)
     controller_scheme: str = "xbox"
@@ -77,7 +80,8 @@ class AppConfig(BaseModel):
     playback: PlaybackConfig = Field(default_factory=PlaybackConfig)
     ui_fps: int = Field(default=60, ge=15, le=144)
     sounds: bool = True
-    log_motion: bool = True  # Activity 'Motion' toggle, persisted
+    log_enabled: bool = True  # Activity 'Log' master toggle, persisted
+    log_motion: bool = True   # Activity 'Motion' toggle, persisted
     # Touch mode: record absolute taps/drags/swipes and replay them as
     # genuine Windows touch input (instead of relative mouse deltas)
     touch_mode: bool = False

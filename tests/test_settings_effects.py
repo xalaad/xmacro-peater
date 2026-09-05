@@ -74,8 +74,8 @@ def test_hotkeys_rebind_live(window):
     apply(window, hk_record="shift+f2")
     assert parse_combo("shift+f2") in window.hotkeys._bindings
     assert parse_combo("ctrl+f9") not in window.hotkeys._bindings
-    # hint texts follow
-    assert "Shift+F2" in window._hint_label.text()
+    # the dim hotkey tag on the Record button follows
+    assert window._btn_hotkeys[window.record_btn].text() == "Shift+F2"
     apply(window, hk_record="ctrl+f9")
 
 

@@ -10,6 +10,7 @@ installer/ViGEmBusSetup*.msi
 .pytest_cache/
 logs/
 recordings/*.json
+sequences/*.json
 config/app_config.json
 config/ui_cache/
 .claude/

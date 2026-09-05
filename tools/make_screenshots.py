@@ -69,6 +69,30 @@ w.grab().save(str(OUT / "compact-deck.png"))
 print("compact-deck.png")
 w._toggle_right_panel(force_collapsed=False)
 
+# Sequence builder, staged with a plausible chain
+from core.config import RECORDINGS_DIR, SEQUENCES_DIR
+from core.sequence import Sequence, SequenceStep
+from ui.widgets.sequence_builder import SequenceBuilder
+
+recs = sorted(p.name for p in RECORDINGS_DIR.glob("rec_*.json"))
+if len(recs) >= 3:
+    SEQUENCES_DIR.mkdir(parents=True, exist_ok=True)
+    staged = SEQUENCES_DIR / "_showcase.json"
+    Sequence(steps=[
+        SequenceStep(recs[0], runs=3, wait=2.0),
+        SequenceStep(recs[1], runs=1, wait=0.0),
+        SequenceStep(recs[2], runs=2, wait=90.0),
+    ]).save(staged)
+    dlg2 = SequenceBuilder(theme, w, existing="_showcase.json")
+    dlg2.name_edit.setText("farm_cycle")
+    app.processEvents()
+    dlg2.grab().save(str(OUT / "sequence-builder.png"))
+    print("sequence-builder.png")
+    dlg2.reject()
+    staged.unlink(missing_ok=True)
+else:
+    print("sequence-builder.png SKIPPED (needs 3+ recordings)")
+
 dlg = SettingsDialog(cfg)
 dlg.resize(450, 560)
 app.processEvents()
@@ -76,6 +100,7 @@ dlg.grab().save(str(OUT / "settings.png"))
 print("settings.png")
 
 o = w.overlay
+w._sync_overlay_targets()
 o.set_state("Playing")
 o.set_info("run 2/5")
 o.set_last_line("▶ Pad A down")

@@ -73,8 +73,8 @@ class SettingsDialog(FramelessDialog):
         super().__init__("Settings", parent)
         self.cfg = cfg
         self._ready = False  # suppress saves while building the UI
-        self.setMinimumSize(430, 420)
-        self.resize(450, 560)
+        self.setMinimumSize(470, 420)
+        self.resize(490, 560)
 
         outer = self.body
         outer.setContentsMargins(12, 10, 12, 12)
@@ -83,6 +83,9 @@ class SettingsDialog(FramelessDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # Content must always FIT the width — vertical scrolling only
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content = QWidget()
         self._content = QVBoxLayout(content)
         self._content.setContentsMargins(0, 0, 8, 0)
@@ -162,6 +165,20 @@ class SettingsDialog(FramelessDialog):
             "the next recording you start.",
         )
 
+        self.rec_countdown = QDoubleSpinBox()
+        self.rec_countdown.setRange(0, 60)
+        self.rec_countdown.setDecimals(1)
+        self.rec_countdown.setSuffix(" s")
+        self.rec_countdown.setValue(cfg.record_countdown)
+        self.rec_countdown.valueChanged.connect(self._apply)
+        self._setting(
+            s, "Record countdown", self.rec_countdown,
+            "Heads-up before a recording starts: a click-through ring "
+            "with ticking seconds appears over the screen so you can get "
+            "into position — input keeps flowing, nothing is blocked. "
+            "Set 0 to start recording instantly.",
+        )
+
         self.stick_dz = QSlider(Qt.Orientation.Horizontal)
         self.stick_dz.setRange(0, 40)
         self.stick_dz.setValue(int(cfg.stick_deadzone * 100))
@@ -206,9 +223,9 @@ class SettingsDialog(FramelessDialog):
         self._setting(
             s, "Start delay (before first run)", self.countdown,
             "Grace period after you press Play, so you can click back into "
-            "the game window before input starts. Expand to h/m/s to "
-            "SCHEDULE a run (e.g. start in 2h 30m — the main screen shows "
-            "the exact clock time). Set 0 to start instantly.",
+            "the game window before input starts. Type any duration (90, "
+            "1h 30m) or use the clock panel to SCHEDULE a run — the main "
+            "screen shows the exact clock time. Set 0 to start instantly.",
         )
 
         self.loop_delay = DurationPicker()
@@ -217,9 +234,9 @@ class SettingsDialog(FramelessDialog):
         self._setting(
             s, "Delay between repeats", self.loop_delay,
             "Pause inserted after each run when repeating or looping "
-            "forever — expand to h/m/s for long, time-based repeats. "
-            "The main screen shows the same value; changing either "
-            "updates both.",
+            "forever — type any duration (90, 1h 30m) for long, "
+            "time-based repeats. The main screen shows the same value; "
+            "changing either updates both.",
         )
 
     def _build_hotkeys_section(self) -> None:
@@ -319,6 +336,56 @@ class SettingsDialog(FramelessDialog):
         import_btn.clicked.connect(self._import_scheme)
         s.addWidget(import_btn)
 
+        # Escape hatch: whatever got messed up, one click back to stock
+        reset = QPushButton("Reset all settings to defaults")
+        reset.setObjectName("dangerOutline")
+        reset.setToolTip(
+            "Restores every setting above to its default value. Your "
+            "recordings, sequences, schemes and branding are untouched.")
+        reset.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset.clicked.connect(self._reset_defaults)
+        self._content.addWidget(reset, 0, Qt.AlignmentFlag.AlignLeft)
+
+    def _reset_defaults(self) -> None:
+        if not confirm(self, "Reset settings",
+                       "Reset every setting to its default?\n\nRecordings, "
+                       "sequences, schemes and branding stay untouched.",
+                       yes_text="Reset"):
+            return
+        defaults = AppConfig()
+        keep_branding = self.cfg.branding
+        for name in AppConfig.model_fields:
+            setattr(self.cfg, name, getattr(defaults, name))
+        self.cfg.branding = keep_branding
+        save_config(self.cfg)
+        self._sync_widgets()
+        self.settings_changed.emit()
+
+    def _sync_widgets(self) -> None:
+        """Push cfg values into every control (no re-save feedback)."""
+        cfg = self.cfg
+        self._ready = False
+        try:
+            self.poll.setValue(cfg.poll_hz)
+            self.rec_countdown.setValue(cfg.record_countdown)
+            self.stick_dz.setValue(int(cfg.stick_deadzone * 100))
+            self.stick_dz_label.setText(f"{self.stick_dz.value()}%")
+            self.trig_dz.setValue(int(cfg.trigger_deadzone * 100))
+            self.trig_dz_label.setText(f"{self.trig_dz.value()}%")
+            self.touch_mode.setChecked(cfg.touch_mode)
+            self.countdown.setValue(cfg.playback.countdown_seconds)
+            self.loop_delay.setValue(cfg.playback.loop_delay)
+            self.hk_record.setText(cfg.hotkeys.record_toggle)
+            self.hk_play.setText(cfg.hotkeys.play_last)
+            self.hk_abort.setText(cfg.hotkeys.abort_playback)
+            self.ov_opacity.setValue(int(cfg.overlay.opacity * 100))
+            self.ov_opacity_label.setText(f"{self.ov_opacity.value()}%")
+            self.ov_hints.setChecked(cfg.overlay.show_hints)
+            self.fps.setValue(cfg.ui_fps)
+            self.sounds.setChecked(cfg.sounds)
+        finally:
+            self._ready = True
+
     # ------------------------------------------------------------- apply
     def _apply(self, *_):
         if not self._ready:
@@ -328,6 +395,7 @@ class SettingsDialog(FramelessDialog):
         self.ov_opacity_label.setText(f"{self.ov_opacity.value()}%")
         c = self.cfg
         c.poll_hz = self.poll.value()
+        c.record_countdown = float(self.rec_countdown.value())
         c.stick_deadzone = self.stick_dz.value() / 100.0
         c.trigger_deadzone = self.trig_dz.value() / 100.0
         c.hotkeys.record_toggle = _valid_combo(

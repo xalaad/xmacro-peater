@@ -25,6 +25,56 @@ INFINITE = 0  # loop_count sentinel
 
 
 @dataclass
+class TimingStats:
+    """Accumulates scheduling error across runs (shared by the single-macro
+    engine and the sequence engine)."""
+    total: float = 0.0
+    mx: float = 0.0
+    n: int = 0
+
+    def add(self, err: float) -> None:
+        self.total += err
+        self.mx = max(self.mx, err)
+        self.n += 1
+
+    @property
+    def avg(self) -> float:
+        return self.total / self.n if self.n else 0.0
+
+
+def play_events(
+    events,
+    output,
+    should_abort: Callable[[], bool],
+    on_event: Callable[[object], None] = lambda ev: None,
+    on_progress: Callable[[int, int], None] = lambda done, total: None,
+    stats: TimingStats | None = None,
+    t0: float | None = None,
+) -> bool:
+    """Play one macro's events against absolute targets measured from t0
+    (default: now). Returns True if aborted mid-run. This is THE inner
+    loop — every replay path in the app (single macro, sequence step,
+    tester) schedules through here so timing behavior is identical."""
+    total = len(events)
+    if t0 is None:
+        t0 = time.perf_counter()
+    for i, ev in enumerate(events):
+        if should_abort():
+            return True
+        target = t0 + ev.t
+        precise_wait_until(target, should_abort=should_abort)
+        if should_abort():
+            return True
+        if stats is not None:
+            stats.add(abs(time.perf_counter() - target))
+        output.send(ev)
+        on_event(ev)
+        if i % 16 == 0 or i == total - 1:
+            on_progress(i + 1, total)
+    return False
+
+
+@dataclass
 class PlaybackCallbacks:
     """All optional; called from the playback thread."""
     on_run_started: Callable[[int, int], None] = lambda run, total: None
@@ -77,10 +127,7 @@ class PlaybackEngine:
             return
 
         events = self.macro.events
-        total = len(events)
-        err_total = 0.0
-        err_max = 0.0
-        err_n = 0
+        stats = TimingStats()
         run = 0
         completed = 0
         # Repeat-cycle fidelity: relative mouse replay compounds across
@@ -103,26 +150,11 @@ class PlaybackEngine:
                         else:
                             set_cursor_pos(*anchor)
                     cb.on_run_started(run, self.loop_count)
-                    t0 = time.perf_counter()
-
-                    for i, ev in enumerate(events):
-                        if self._abort.is_set():
-                            aborted = True
-                            break
-                        target = t0 + ev.t
-                        precise_wait_until(target, should_abort=self._abort.is_set)
-                        if self._abort.is_set():
-                            aborted = True
-                            break
-                        err = abs(time.perf_counter() - target)
-                        err_total += err
-                        err_max = max(err_max, err)
-                        err_n += 1
-                        output.send(ev)
-                        cb.on_event(ev)
-                        if i % 16 == 0 or i == total - 1:
-                            cb.on_progress(i + 1, total)
-
+                    aborted = play_events(
+                        events, output, self._abort.is_set,
+                        on_event=cb.on_event, on_progress=cb.on_progress,
+                        stats=stats,
+                    )
                     output.release_all()  # nothing sticks between runs
                     if aborted:
                         break
@@ -134,13 +166,12 @@ class PlaybackEngine:
                             break
         finally:
             output.close()
-            avg = err_total / err_n if err_n else 0.0
-            cb.on_timing(avg, err_max)
+            cb.on_timing(stats.avg, stats.mx)
             aborted = aborted or self._abort.is_set()
             log.info(
                 "Playback %s after %d run(s): avg timing error %.3fms, max %.3fms",
                 "aborted" if aborted else "finished",
-                completed, avg * 1000, err_max * 1000,
+                completed, stats.avg * 1000, stats.mx * 1000,
             )
             msg = "Aborted" if aborted else f"Finished {completed} run(s)"
             cb.on_finished(aborted, msg)

@@ -60,10 +60,24 @@ class ActivityLog(QFrame):
         bar.setSpacing(8)
         self.collapse_btn = QPushButton("▾ ACTIVITY")
         self.collapse_btn.setObjectName("sectionToggle")
+        self.collapse_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.collapse_btn.setToolTip("Show / hide the activity log")
         self.collapse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.collapse_btn.clicked.connect(self.toggle_collapsed)
+        self.enabled_box = QCheckBox("Log")
+        self.enabled_box.setChecked(True)
+        # NoFocus everywhere clickable: a stray Space/Enter must never
+        # toggle whatever was clicked last
+        self.enabled_box.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.enabled_box.setToolTip(
+            "Master switch: OFF silences the activity log entirely — "
+            "nothing is added while it's unchecked (recording/playback "
+            "themselves are unaffected)."
+        )
+        self.enabled_box.toggled.connect(
+            lambda on: self.verbose.setEnabled(on))
         self.verbose = QCheckBox("Motion")
+        self.verbose.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.verbose.setToolTip(
             "Log continuous motion too: mouse movement, stick axes, and "
             "analog trigger travel. Presses and releases are always logged."
@@ -74,8 +88,10 @@ class ActivityLog(QFrame):
         self.search.setFixedWidth(160)
         self.search.textChanged.connect(self._apply_filter)
         clear_btn = QPushButton("Clear")
+        clear_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         clear_btn.clicked.connect(self.clear)
         bar.addWidget(self.collapse_btn)
+        bar.addWidget(self.enabled_box)
         bar.addWidget(self.verbose)
         bar.addStretch(1)
         bar.addWidget(self.search)
@@ -93,7 +109,7 @@ class ActivityLog(QFrame):
 
     @property
     def motion_enabled(self) -> bool:
-        return self.verbose.isChecked()
+        return self.verbose.isChecked() and self.enabled_box.isChecked()
 
     def toggle_collapsed(self) -> None:
         self._collapsed = not self._collapsed
@@ -101,8 +117,10 @@ class ActivityLog(QFrame):
         self.search.setVisible(not self._collapsed)
         self.collapse_btn.setText(
             "▸ ACTIVITY" if self._collapsed else "▾ ACTIVITY")
-        self.setMinimumHeight(36 if self._collapsed else 120)
-        self.setMaximumHeight(40 if self._collapsed else 16777215)
+        # Collapsed height must still fit the header row's tallest child
+        # (the Clear button ≈32px) plus the 8px margins — 40px clipped it
+        self.setMinimumHeight(48 if self._collapsed else 120)
+        self.setMaximumHeight(48 if self._collapsed else 16777215)
 
     def set_theme(self, theme: Theme) -> None:
         self.theme = theme
@@ -167,6 +185,8 @@ class ActivityLog(QFrame):
                       self._color_for(ev.src))
 
     def add_line(self, text: str, color: QColor | None = None) -> None:
+        if not self.enabled_box.isChecked():
+            return  # master 'Log' switch: silence everything
         item = QListWidgetItem()
         label = QLabel(text)
         label.setStyleSheet(
