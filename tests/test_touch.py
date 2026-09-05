@@ -193,3 +193,96 @@ def test_playback_touch_fallback_absolute_mouse(monkeypatch):
     out.send(MacroEvent(0, "touch", {"action": "up", "x": 50, "y": 60}))
     assert moved == [(50, 60), (50, 60)]
     assert not out._held_mouse  # released again
+
+
+# --------------------------------------------------- digitizer state machine
+def test_tip_switch_keeps_a_paused_drag_as_one_contact():
+    """A finger resting mid-drag stops producing reports; with a tip
+    switch that must NOT split the gesture (the old timing-only rule
+    did, which is why slow drags recorded as several contacts)."""
+    from core.capture.raw_touch import RawTouchWatcher
+    got = []
+    w = RawTouchWatcher(
+        on_down=lambda x, y: got.append(("down", x, y)),
+        on_move=lambda x, y: got.append(("move", x, y)),
+        on_up=lambda x, y: got.append(("up", x, y)),
+        quiet_gap=0.12)
+    w._tip_known = True
+    w.handle_report(1.00, 100, 100, tip=True)
+    w.handle_report(1.02, 110, 110, tip=True)
+    w.handle_report(3.00, 200, 200, tip=True)   # 2s pause mid-drag
+    w.check_gap(3.50)                            # must not lift
+    w.handle_report(3.60, 210, 210, tip=False)   # real lift
+    assert got == [("down", 100, 100), ("move", 110, 110),
+                   ("move", 200, 200), ("up", 210, 210)]
+
+
+def test_tip_switch_separates_consecutive_taps():
+    from core.capture.raw_touch import RawTouchWatcher
+    got = []
+    w = RawTouchWatcher(
+        on_down=lambda x, y: got.append(("down", x, y)),
+        on_up=lambda x, y: got.append(("up", x, y)), quiet_gap=0.12)
+    w._tip_known = True
+    w.handle_report(1.0, 10, 10, tip=True)
+    w.handle_report(1.1, 10, 10, tip=False)
+    w.handle_report(1.15, 50, 50, tip=True)   # second tap right after
+    w.handle_report(1.25, 50, 50, tip=False)
+    assert got == [("down", 10, 10), ("up", 10, 10),
+                   ("down", 50, 50), ("up", 50, 50)]
+
+
+def test_timing_fallback_when_device_has_no_tip_switch():
+    from core.capture.raw_touch import RawTouchWatcher
+    got = []
+    w = RawTouchWatcher(
+        on_down=lambda x, y: got.append(("down", x, y)),
+        on_up=lambda x, y: got.append(("up", x, y)), quiet_gap=0.12)
+    w.handle_report(1.0, 7, 7)      # tip unknown -> burst logic
+    w.handle_report(1.05, 8, 8)
+    w.check_gap(1.30)
+    assert got == [("down", 7, 7), ("up", 8, 8)]
+
+
+def test_real_surface_report_pattern_is_one_gesture():
+    """Replays the exact pattern captured from a Surface digitizer
+    (tools/hid_dump.py): a burst of tip-down reports including a
+    stationary pause, closed by a single tip-up report."""
+    from core.capture.raw_touch import RawTouchWatcher
+    downs, moves, ups = [], [], []
+    w = RawTouchWatcher(
+        on_down=lambda x, y: downs.append((x, y)),
+        on_move=lambda x, y: moves.append((x, y)),
+        on_up=lambda x, y: ups.append((x, y)),
+        quiet_gap=0.12)
+    w._tip_known = True
+    t = 5.20
+    w.handle_report(t, 1638, 995, tip=True)          # contact starts
+    for i in range(40):                              # drag
+        t += 0.016
+        w.handle_report(t, 1638 + i * 4, 995 - i * 9, tip=True)
+    for _ in range(6):                               # finger holds still
+        t += 0.016
+        w.handle_report(t, 1798, 635, tip=True)
+    t += 0.016
+    w.handle_report(t, 1800, 630, tip=False)         # lift
+    assert len(downs) == 1 and len(ups) == 1
+    assert downs[0] == (1638, 995) and ups[0] == (1800, 630)
+    assert len(moves) > 20        # the path was recorded
+    w.check_gap(t + 5.0)          # no phantom second lift
+    assert len(ups) == 1
+
+
+def test_stuck_contact_safety_net():
+    """If a lift report is ever lost, the contact must not hang open."""
+    from core.capture.raw_touch import STUCK_TIMEOUT, RawTouchWatcher
+    ups = []
+    w = RawTouchWatcher(on_down=lambda x, y: None,
+                        on_up=lambda x, y: ups.append((x, y)),
+                        quiet_gap=0.12)
+    w._tip_known = True
+    w.handle_report(1.0, 300, 400, tip=True)
+    w.check_gap(1.0 + STUCK_TIMEOUT / 2)
+    assert ups == []                       # still held: no premature lift
+    w.check_gap(1.0 + STUCK_TIMEOUT + 0.1)
+    assert ups == [(300, 400)]             # rescued

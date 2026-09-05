@@ -194,4 +194,8 @@ class KeyboardMouseCapture:
         })
 
     def _on_scroll(self, x, y, dx, dy) -> None:
+        # Precision touchpads / touch scrolling emit a flood of no-op
+        # notches (dx=dy=0) between real ones - never record those
+        if not dx and not dy:
+            return
         self.emit({"src": "mouse_scroll", "dx": dx, "dy": dy})
