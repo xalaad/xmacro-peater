@@ -34,9 +34,24 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 </table>
 
 ![Sequence builder — chain recordings into one precise timeline](docs/screenshots/sequence-builder.png)
-<sub><b>Sequence builder</b> — chain recordings with per-step runs &amp; waits, live pass estimate, drift-free execution.</sub>
+<sub><b>Sequence builder</b> — chain recordings with per-step runs &amp; waits, drag-the-grip reordering, inline step recording, live pass estimate.</sub>
 
 <br><br>
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/sequences-deck.png" width="200" alt="Sequences deck with cards"></td>
+    <td align="center"><img src="docs/screenshots/duration-panel.png" width="270" alt="Smart duration field with h/m/s panel"></td>
+    <td align="center"><img src="docs/screenshots/overlay-picker.png" width="270" alt="Overlay target picker"></td>
+    <td align="center"><img src="docs/screenshots/countdown.png" width="170" alt="Record countdown ring"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Sequence deck</b> — cards with step counts &amp; pass estimates, plan line does the math</sub></td>
+    <td align="center"><sub><b>Smart time fields</b> — type <code>2h 30m</code> or use the panel; “lands ~22:38”</sub></td>
+    <td align="center"><sub><b>Overlay picker</b> — grouped, device badges, run lengths, completion-time tooltips</sub></td>
+    <td align="center"><sub><b>Record countdown</b> — click-through ticking ring, blocks nothing</sub></td>
+  </tr>
+</table>
 
 ![TEST MODE — fullscreen live input dashboard](docs/screenshots/test-mode.png)
 <sub><b>TEST MODE</b> — every device live, edge to edge: full mechanical keyboard with numpad, controller with per-button glow, analog scopes, and a circular mouse stage.</sub>
@@ -82,7 +97,15 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   many runs and the wait after each run, then repeat the whole chain with
   the normal loop modes. The chain plays as **one precise timeline**
   (waits are scheduled from the run's start, so overhead never drifts it),
-  and renaming a recording auto-updates every sequence that uses it.
+  and renaming a recording auto-updates every sequence that uses it. The
+  builder reorders steps by **dragging the grip** and can **record a new
+  step inline** without closing.
+- **Card decks with device badges** — recordings and sequences live in
+  two tabs of one card list. Every card shows a badge of the devices the
+  take actually uses (one icon; a diagonal split for two; a **Y split**
+  for three), plus its duration and event count; full breakdowns on
+  hover, names shown without `.json`. Metadata is cached by file version,
+  so arrow-key browsing is instant even through multi-MB takes.
 - **Any pad in, Xbox pad out** — Xbox via raw XInput; PlayStation and
   generic pads via JSON-defined schemes (adding a controller = adding a
   JSON file). Live per-scheme connection dots and a device switcher when
@@ -95,13 +118,24 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
   `Ctrl+F9` record, `Ctrl+F10` play, `Ctrl+F11` stop (rebindable; hotkey
   presses are stripped from recordings automatically).
 - **Three ways to keep it around** — the full window; the **mini
-  overlay** (a translucent always-on-top HUD over your game with state,
-  last action, repeat controls and record/play/stop); or the **side
-  drawer**: pick Dock left / Dock right from the dock menu and the
-  sidebar glues to that screen edge at full height, always on top. The
-  arrow strip slides it away entirely — only a small half-capsule tab
-  stays at the edge; click it to slide the drawer back. The mode and
-  side survive restarts.
+  overlay**; or the **side drawer**: pick Dock left / Dock right from
+  the dock menu and the sidebar glues to that screen edge at full
+  height, always on top. The arrow strip slides it away entirely — only
+  a small half-capsule tab
+  (<img src="docs/screenshots/drawer-tab.png" height="26" align="absmiddle" alt="drawer tab">)
+  stays at the edge; click it to slide the drawer back. Mode and side
+  survive restarts.
+- **The overlay is a full remote** — a translucent always-on-top HUD
+  with colored state, a **target picker** (sequences grouped above
+  recordings, device badges, run lengths inline, and per-item tooltips
+  computing the total completion time under your current repeat
+  settings), repeat controls, a single play↔stop transport button, and
+  the last-action line. Everything stays synced with the main window.
+- **Honest activity log** — color-tagged per device, filterable, with a
+  **Motion** toggle for continuous streams and a master **Log** switch
+  to silence it entirely. While idle it narrates what your devices do
+  (`[test] Pad A`, `[test] Touch tap at (x, y)` — real touchscreen taps
+  are detected via the OS touch signature, not mislabeled as clicks).
 - **TEST MODE** — a fullscreen live dashboard: full mechanical keyboard
   (with numpad), realistic mouse on a circular stage, controller with
   glowing buttons, stick scopes and trigger bars. Run injection presets,
@@ -117,8 +151,11 @@ Output flows through a virtual Xbox 360 pad and genuine relative input events, s
 - **Record countdown** — a click-through ticking ring floats over the
   screen before recording starts (3 s, tunable in Settings), so you can
   get into position; it blocks nothing and never steals focus.
-- **Custom dark UI** — frameless themed window, green/olive terminal
-  aesthetic, everything resizable with a sane minimum.
+- **Sharp dark UI, disciplined input** — frameless themed window,
+  emerald/olive terminal aesthetic with a derived-tint design system,
+  hotkeys shown as dim tags right on the action buttons — and
+  Space/Enter act **only** on the deck list and text fields, so a stray
+  keypress can never trigger a button.
 
 ## 📦 Install
 
@@ -161,9 +198,9 @@ python -m venv .venv
 3. Choose the repeat mode (once / N times / forever + delays — the plan
    line spells out exactly what Play will do) and hit **▶ Play**
    (or `Ctrl+F10`). `Ctrl+F11` aborts and releases every held key/button.
-4. Click **Mini** for the in-game overlay, **Dock** to glue the sidebar
-   to the screen edge as a slide-away drawer, or **Tester** for the
-   fullscreen live input dashboard.
+4. Click **Mini** for the in-game overlay, **Dock** (pick left or right
+   from its menu) to glue the sidebar to the screen edge as a slide-away
+   drawer, or **TEST MODE** for the fullscreen live input dashboard.
 5. Got several recordings that belong together? Switch the deck to
    **SEQUENCES** and hit **+** to chain them — see below.
 
@@ -209,7 +246,10 @@ How a chain executes:
 ## ⚙️ Settings explained
 
 Every setting applies and saves the moment you change it. Hover any
-**(?)** in the app for the same explanations.
+**(?)** in the app for the same explanations — and if anything gets
+messed up, **Reset all settings to defaults** at the bottom of the
+dialog restores stock values (recordings, sequences, schemes and
+branding are never touched).
 
 ### Recording
 
@@ -323,7 +363,7 @@ sampling, and every visualizer repaints only when its state changes.
 
 ```powershell
 .venv\Scripts\pip install pyinstaller
-.venv\Scripts\pyinstaller xmacro_peater.spec   # -> dist/XMacro-peater.exe
+.venv\Scripts\pyinstaller xmacro_peater.spec   # -> dist/XMacro-peater/
 ```
 
 Tagged pushes (`v*`) trigger the [release workflow](.github/workflows/release.yml),

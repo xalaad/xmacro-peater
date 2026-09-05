@@ -90,9 +90,11 @@ class TopmostCombo(QComboBox):
     def showPopup(self) -> None:
         super().showPopup()
         # Qt scrolls the popup to the current item (often the bottom of a
-        # long list) — always open at the top instead. singleShot(0) runs
-        # AFTER Qt's own deferred scroll.
+        # long list) — always open at the top instead. Qt's own scroll is
+        # deferred too and its timing varies, so fire twice to win the
+        # race deterministically.
         QTimer.singleShot(0, self.view().scrollToTop)
+        QTimer.singleShot(50, self.view().scrollToTop)
         if sys.platform == "win32":
             popup = self.view().window()
             HWND_TOPMOST = -1

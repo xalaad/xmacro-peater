@@ -123,5 +123,92 @@ app.processEvents()
 tw.grab().save(str(OUT / "test-mode.png"))
 print("test-mode.png")
 
+# --- v1.1 feature shots ---------------------------------------------
+from PySide6.QtCore import QPoint, QRect
+
+from core.config import SEQUENCES_DIR
+
+# Stage two showcase sequences (only if the names are free; cleaned up)
+made = []
+recs2 = sorted(p.name for p in RECORDINGS_DIR.glob("rec_*.json"))
+if len(recs2) >= 2:
+    for name, steps in (
+        ("farm_cycle.json", [SequenceStep(recs2[0], runs=3, wait=2.0),
+                             SequenceStep(recs2[-1], runs=1)]),
+        ("daily_login.json", [SequenceStep(recs2[-1], runs=1, wait=5.0),
+                              SequenceStep(recs2[0], runs=10, wait=1.0)]),
+    ):
+        pth = SEQUENCES_DIR / name
+        if not pth.exists():
+            Sequence(steps=steps).save(pth)
+            made.append(pth)
+
+# Sequences deck (compact sidebar, SEQUENCES tab active)
+w._toggle_right_panel(force_collapsed=True)
+w._set_deck_mode("seq")
+for _ in range(20):
+    app.processEvents()
+    time.sleep(0.02)
+w.grab().save(str(OUT / "sequences-deck.png"))
+print("sequences-deck.png")
+w._set_deck_mode("rec")
+
+# Smart duration field with its h/m/s panel open (screen-region grab —
+# the panel is its own window, so a widget grab can't see both)
+w.show()
+w.move(60, 60)
+for _ in range(20):
+    app.processEvents()
+    time.sleep(0.02)
+w.start_delay.setValue(9000)
+w.start_delay._open_popup()
+for _ in range(20):
+    app.processEvents()
+    time.sleep(0.02)
+field_tl = w.start_delay.mapToGlobal(QPoint(0, -26))
+pop = w.start_delay._popup.frameGeometry()
+region = QRect(field_tl, pop.bottomRight()).adjusted(-10, -6, 12, 10)
+app.primaryScreen().grabWindow(
+    0, region.x(), region.y(), region.width(), region.height()
+).save(str(OUT / "duration-panel.png"))
+print("duration-panel.png")
+w.start_delay._popup.hide()
+w.start_delay.setValue(3)
+w.hide()
+w._toggle_right_panel(force_collapsed=False)
+
+# Overlay target picker, open and grouped (auto-scrolls to top)
+w._sync_overlay_targets()
+o.show()
+o.target.showPopup()
+for _ in range(25):
+    app.processEvents()
+    time.sleep(0.02)
+o.target.view().scrollToTop()
+for _ in range(10):
+    app.processEvents()
+    time.sleep(0.02)
+o.target.view().window().grab().save(str(OUT / "overlay-picker.png"))
+print("overlay-picker.png")
+o.target.hidePopup()
+o.hide()
+
+# Record-countdown ring, mid-tick
+cd = w.rec_countdown
+cd.start(3.0)
+time.sleep(0.55)
+app.processEvents()
+cd.grab().save(str(OUT / "countdown.png"))
+print("countdown.png")
+cd.stop()
+
+# The side drawer's half-capsule edge tab
+w.dock_tab._side = "right"
+w.dock_tab.grab().save(str(OUT / "drawer-tab.png"))
+print("drawer-tab.png")
+
+for pth in made:
+    pth.unlink(missing_ok=True)
+
 w.close()
 print("done")
