@@ -64,6 +64,12 @@ def fade_in(widget: QWidget, duration_ms: int = 180) -> QPropertyAnimation:
     anim.setEndValue(1.0)
     anim.setEasingCurve(QEasingCurve.Type.OutQuad)
     # Drop the effect when done — stacked opacity effects slow painting.
-    anim.finished.connect(lambda: widget.setGraphicsEffect(None))
+    def _drop_effect() -> None:
+        try:
+            widget.setGraphicsEffect(None)
+        except RuntimeError:
+            pass  # widget already deleted (e.g. trimmed log line)
+
+    anim.finished.connect(_drop_effect)
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
     return anim

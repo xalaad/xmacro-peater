@@ -198,10 +198,16 @@ class DockingMixin:
         (same size both ends): no per-frame resize/relayout, and the
         explicit start pose means the first frame is never mid-flight."""
         # A rapid re-toggle must not leave two animations fighting over
-        # pos — stop (and thereby delete) the in-flight one first
+        # pos — stop (and thereby delete) the in-flight one first.
+        # DeleteWhenStopped means a FINISHED animation's C++ half is
+        # already gone while this handle survives — stop() then raises
+        # RuntimeError, which is exactly the "nothing to stop" case.
         prev = getattr(self, "_drawer_anim", None)
         if prev is not None:
-            prev.stop()
+            try:
+                prev.stop()
+            except RuntimeError:
+                pass
         anim = QPropertyAnimation(self, b"pos", self)
         anim.setDuration(260)
         anim.setEasingCurve(QEasingCurve.Type.InOutCubic)

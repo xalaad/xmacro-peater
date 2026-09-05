@@ -493,3 +493,17 @@ def test_reset_restores_hardware_touch_default(app, monkeypatch):
     dlg = SettingsDialog(cfg)
     dlg._reset_defaults()
     assert cfg.touch_mode is True
+
+
+def test_drawer_slide_survives_finished_previous_animation(window):
+    """Regression: opening the dock after a previous slide FINISHED
+    crashed - DeleteWhenStopped had freed the C++ animation while the
+    Python handle in _drawer_anim survived, and stop() on the corpse
+    raised RuntimeError."""
+    from PySide6.QtCore import QEventLoop, QPoint, QTimer
+    win = window
+    win._slide_to(QPoint(0, 0), QPoint(30, 0))
+    loop = QEventLoop()
+    QTimer.singleShot(450, loop.quit)   # let the 260ms slide finish + delete
+    loop.exec()
+    win._slide_to(QPoint(30, 0), QPoint(0, 0))   # must not raise
