@@ -223,7 +223,9 @@ class MainWindow(QMainWindow):
                             | Qt.WindowType.Window)
         # Floor chosen so every section stays fully visible; native resize
         # enforces it too via WM_GETMINMAXINFO's ptMinTrackSize below.
-        self.setMinimumSize(1000, 640)
+        # DYNAMIC: capped by the actual screen, so small laptops never get
+        # a window bigger than their display.
+        self.setMinimumSize(*self._min_size(collapsed=False))
 
         sounds.enabled = cfg.sounds
         self._dot_icons: dict = {}
@@ -906,16 +908,19 @@ class MainWindow(QMainWindow):
             self._content_lay.setContentsMargins(10, 8, 6, 6)
             if not self.isMaximized():
                 self._expanded_width = self.width()
-                self.setMinimumSize(318, 640)
-                self.resize(318, self.height())
+                self.setMinimumSize(*self._min_size(collapsed=True))
+                self.resize(DOCK_W, self.height())
         else:
             self.collapse_btn.setText("\uE76B")   # chevron left: click to close
             self.collapse_btn.setToolTip("Hide the test & activity section")
             self._content_lay.setContentsMargins(10, 8, 10, 6)
-            self.setMinimumSize(1000, 640)
+            min_w, min_h = self._min_size(collapsed=False)
+            self.setMinimumSize(min_w, min_h)
             if not self.isMaximized():
-                self.resize(max(getattr(self, "_expanded_width", 1120),
-                                1000), self.height())
+                wa = (self.screen()
+                      or QGuiApplication.primaryScreen()).availableGeometry()
+                self.resize(min(max(getattr(self, "_expanded_width", 1120),
+                                    min_w), wa.width()), self.height())
         QSettings("MacroSuite", "InputMacroSuite").setValue(
             "right_collapsed", collapsed)
 
@@ -2295,6 +2300,24 @@ class MainWindow(QMainWindow):
                 self.activity.add_line(f"[test] {text}", QColor(color))
 
     # ------------------------------------------------------------- lifecycle
+    def _min_size(self, collapsed: bool) -> tuple[int, int]:
+        """Preferred floors (1000x640 / 318x640), capped by the CURRENT
+        screen so a small laptop is never forced past its display."""
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        wa = screen.availableGeometry()
+        w = DOCK_W if collapsed else min(1000, wa.width() - 8)
+        return (min(w, wa.width() - 8), min(640, wa.height() - 8))
+
+    @staticmethod
+    def _clamped_rect(geo: QRect, wa: QRect) -> QRect:
+        """Fit a (possibly stale, saved-on-another-screen) geometry into
+        the given work area: shrink oversize, pull fully on-screen."""
+        w = min(geo.width(), wa.width())
+        h = min(geo.height(), wa.height())
+        x = max(wa.left(), min(geo.x(), wa.right() - w + 1))
+        y = max(wa.top(), min(geo.y(), wa.bottom() - h + 1))
+        return QRect(x, y, w, h)
+
     def _restore_geometry(self) -> None:
         settings = QSettings("MacroSuite", "InputMacroSuite")
         geo = settings.value("geometry")
@@ -2302,6 +2325,12 @@ class MainWindow(QMainWindow):
             self.restoreGeometry(geo)
         else:
             self.resize(1120, 700)
+        # Saved dimensions come from whatever screen the app last ran on
+        # — validate against THIS one (smaller laptop, changed scaling…)
+        screen = (QGuiApplication.screenAt(self.frameGeometry().center())
+                  or self.screen() or QGuiApplication.primaryScreen())
+        self.setGeometry(self._clamped_rect(
+            self.geometry(), screen.availableGeometry()))
 
     def closeEvent(self, event: QCloseEvent) -> None:
         QApplication.instance().removeEventFilter(self)

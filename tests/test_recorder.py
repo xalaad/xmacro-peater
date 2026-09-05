@@ -3,7 +3,50 @@
 import time
 
 from core.controllers.base import ControllerBackend, neutral_state
+from core.capture.keyboard_mouse import KeyboardMouseCapture
 from core.recorder import MacroRecorder
+
+
+class FakeLeft:
+    def __str__(self):
+        return "Button.left"
+
+
+def test_touch_mode_coexists_with_real_mouse():
+    """Touch mode must NOT hijack the mouse: signature-flagged events
+    become gestures, unflagged (real mouse) events keep recording as
+    normal clicks and relative motion."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True)
+    # A finger: flagged touch -> gesture down/move/up
+    cap._evt_is_touch = True
+    cap._on_click(100, 100, FakeLeft(), True)
+    cap._on_move(120, 130)
+    cap._on_click(120, 130, FakeLeft(), False)
+    # A real mouse right after: unflagged -> mouse events
+    cap._evt_is_touch = False
+    cap._on_move(300, 300)          # first move: only seeds last_pos
+    cap._on_move(310, 305)
+    cap._on_click(310, 305, FakeLeft(), True)
+    cap._on_click(310, 305, FakeLeft(), False)
+    srcs = [e["src"] for e in got]
+    assert srcs == ["touch", "touch", "touch",
+                    "mouse_move", "mouse_btn", "mouse_btn"]
+    assert got[0]["action"] == "down" and got[2]["action"] == "up"
+    # Relative deltas restarted AFTER the touch warp — no giant jump
+    assert (got[3]["dx"], got[3]["dy"]) == (10, 5)
+    assert got[4] == {"src": "mouse_btn", "action": "down",
+                      "button": "left"}
+
+
+def test_touch_mode_legacy_without_filter():
+    """No win32 filter info (flag unknown): everything left-button still
+    counts as touch — the old behavior stays for exotic setups."""
+    got = []
+    cap = KeyboardMouseCapture(got.append, touch_mode=True)
+    cap._on_click(10, 10, FakeLeft(), True)
+    cap._on_click(10, 10, FakeLeft(), False)
+    assert [e["src"] for e in got] == ["touch", "touch"]
 
 
 class ScriptedBackend(ControllerBackend):

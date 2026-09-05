@@ -2,9 +2,15 @@
 
 Mouse movement is recorded as relative deltas so playback works with games
 that capture the cursor for camera look.
+
+Touch mode records absolute gestures — and coexists with a REAL mouse:
+each hook message carries Windows' touch/pen signature in dwExtraInfo, so
+touch-synthesized events become gestures while genuine mouse events keep
+recording as normal clicks and relative motion.
 """
 from __future__ import annotations
 
+import sys
 import time
 from typing import Any, Callable, Iterable
 
@@ -15,6 +21,13 @@ try:
 except ImportError:  # pragma: no cover
     keyboard = mouse = None
     PYNPUT_AVAILABLE = False
+
+# Mouse messages Windows synthesizes from touch/pen carry this signature
+# in the hook struct's dwExtraInfo (readable ONLY there, not via
+# GetMessageExtraInfo inside low-level hooks)
+_MI_SIG_MASK, _MI_SIG = 0xFFFFFF00, 0xFF515700
+_WM_MOUSEMOVE = 0x0200
+_WM_LBUTTONDOWN, _WM_LBUTTONUP = 0x0201, 0x0202
 
 
 def key_repr(key) -> str:
@@ -58,17 +71,30 @@ class KeyboardMouseCapture:
         self._last_pos: tuple[int, int] | None = None
         self._touch_down = False
         self._last_touch_move = 0.0
+        # Per-message: was the CURRENT mouse event synthesized from touch?
+        # None = unknown (no filter available) -> legacy all-touch behavior
+        self._evt_is_touch: bool | None = None
 
     def start(self) -> None:
         self._last_pos = None
         self._kb_listener = keyboard.Listener(
             on_press=self._on_press, on_release=self._on_release
         )
+        kwargs = {}
+        if sys.platform == "win32":
+            kwargs["win32_event_filter"] = self._win32_filter
         self._mouse_listener = mouse.Listener(
-            on_move=self._on_move, on_click=self._on_click, on_scroll=self._on_scroll
+            on_move=self._on_move, on_click=self._on_click,
+            on_scroll=self._on_scroll, **kwargs
         )
         self._kb_listener.start()
         self._mouse_listener.start()
+
+    def _win32_filter(self, msg, data) -> bool:
+        if msg in (_WM_MOUSEMOVE, _WM_LBUTTONDOWN, _WM_LBUTTONUP):
+            extra = getattr(data, "dwExtraInfo", 0) & 0xFFFFFFFF
+            self._evt_is_touch = (extra & _MI_SIG_MASK) == _MI_SIG
+        return True  # never suppress
 
     def stop(self) -> None:
         if self._kb_listener is not None:
@@ -89,8 +115,13 @@ class KeyboardMouseCapture:
         if rep not in self.ignore_keys:
             self.emit({"src": "kb", "action": "up", "key": rep})
 
+    def _event_is_touch(self) -> bool:
+        # Unknown (no win32 filter) -> legacy behavior: in touch mode
+        # everything left-button counts as touch
+        return self._evt_is_touch if self._evt_is_touch is not None else True
+
     def _on_move(self, x: int, y: int) -> None:
-        if self.touch_mode:
+        if self.touch_mode and self._event_is_touch():
             # Drag/swipe path: absolute points while the contact is down,
             # coalesced to ~125Hz so fast swipes don't flood the file
             if self._touch_down:
@@ -99,6 +130,9 @@ class KeyboardMouseCapture:
                     self._last_touch_move = now
                     self.emit({"src": "touch", "action": "move",
                                "x": int(x), "y": int(y)})
+            # A finger warped the cursor: relative deltas must restart
+            # fresh or the next real mouse move records a giant jump
+            self._last_pos = None
             return
         if not self.capture_moves:
             return
@@ -110,8 +144,10 @@ class KeyboardMouseCapture:
 
     def _on_click(self, x, y, button, pressed) -> None:
         name = str(button).split(".")[-1]
-        if self.touch_mode and name == "left":
+        if (self.touch_mode and name == "left"
+                and (self._event_is_touch() or self._touch_down)):
             self._touch_down = pressed
+            self._last_pos = None
             self.emit({"src": "touch",
                        "action": "down" if pressed else "up",
                        "x": int(x), "y": int(y)})

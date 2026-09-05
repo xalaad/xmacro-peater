@@ -109,27 +109,35 @@ def save_config(cfg: AppConfig, path: str | Path = CONFIG_PATH) -> None:
 
 
 def migrate_legacy_data() -> None:
-    """One-time move from the old %LOCALAPPDATA%\\XMacro-peater location
-    (used by earlier builds) to the folders next to the exe."""
+    """ONE-time copy from the old %LOCALAPPDATA%\\XMacro-peater location
+    (used by v1.0 builds) to the folders next to the exe.
+
+    A marker file makes it truly one-time: without it, every launch
+    re-copied anything the user had deleted — deleted recordings kept
+    "coming back" from the legacy stash."""
     if not getattr(sys, "frozen", False):
         return
-    legacy = Path(os.environ.get("LOCALAPPDATA", "")) / "XMacro-peater"
-    if not legacy.exists() or legacy == APP_DIR:
+    marker = CONFIG_DIR / ".legacy-migrated"
+    if marker.exists():
         return
     import shutil
     try:
-        old_cfg = legacy / "config" / "app_config.json"
-        if old_cfg.exists() and not CONFIG_PATH.exists():
-            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(old_cfg, CONFIG_PATH)
-        old_rec = legacy / "recordings"
-        if old_rec.exists():
-            RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-            for f in old_rec.glob("*.json"):
-                dest = RECORDINGS_DIR / f.name
-                if not dest.exists():
-                    shutil.copy2(f, dest)
-        log.info("Migrated legacy data from %s", legacy)
+        legacy = Path(os.environ.get("LOCALAPPDATA", "")) / "XMacro-peater"
+        if legacy.exists() and legacy != APP_DIR:
+            old_cfg = legacy / "config" / "app_config.json"
+            if old_cfg.exists() and not CONFIG_PATH.exists():
+                CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(old_cfg, CONFIG_PATH)
+            old_rec = legacy / "recordings"
+            if old_rec.exists():
+                RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+                for f in old_rec.glob("*.json"):
+                    dest = RECORDINGS_DIR / f.name
+                    if not dest.exists():
+                        shutil.copy2(f, dest)
+            log.info("Migrated legacy data from %s", legacy)
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        marker.write_text("done", encoding="utf-8")
     except OSError as e:
         log.warning("Legacy data migration failed: %s", e)
 

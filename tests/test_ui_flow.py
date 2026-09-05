@@ -335,6 +335,31 @@ def test_log_master_toggle_silences_activity(window):
     assert win.cfg.log_enabled is True
 
 
+# ----------------------------------------------------- screen-fit windows
+def test_saved_geometry_clamped_to_screen():
+    """Dimensions saved on a big desktop must shrink & move on-screen
+    when restored on a small laptop."""
+    from PySide6.QtCore import QRect
+
+    from ui.main_window import MainWindow
+    laptop = QRect(0, 0, 1280, 720)
+    big = QRect(400, 200, 1600, 900)      # saved on a 1920x1080 desktop
+    fit = MainWindow._clamped_rect(big, laptop)
+    assert fit.width() <= 1280 and fit.height() <= 720
+    assert laptop.contains(fit)
+    offscreen = QRect(1500, 800, 800, 600)  # was on a monitor to the right
+    fit2 = MainWindow._clamped_rect(offscreen, laptop)
+    assert laptop.contains(fit2)
+
+
+def test_minimum_size_never_exceeds_screen(window):
+    screen = window.screen()
+    wa = screen.availableGeometry()
+    for collapsed in (False, True):
+        w, h = window._min_size(collapsed)
+        assert w <= wa.width() and h <= wa.height()
+
+
 # ------------------------------------------------------------- side dock
 def test_dock_mode_lifecycle(window):
     win = window
