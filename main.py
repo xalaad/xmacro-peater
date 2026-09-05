@@ -73,34 +73,6 @@ def make_splash(theme, app_name: str) -> QSplashScreen:
     return QSplashScreen(pm)
 
 
-def run_touch_check_mode() -> int:
-    """XMacro-peater.exe --touch-check: self-diagnose touch precision on
-    THIS machine; report in a dialog + logs/touch_check.txt."""
-    sys.argv = [a for a in sys.argv if a != "--touch-check"]
-    app = QApplication(sys.argv)
-
-    from core.config import LOGS_DIR
-    from ui.touch_check import run_touch_check
-
-    def done(report: str, ok: bool) -> None:
-        try:
-            LOGS_DIR.mkdir(parents=True, exist_ok=True)
-            (LOGS_DIR / "touch_check.txt").write_text(
-                report, encoding="utf-8")
-        except OSError:
-            pass
-        print(report)
-        box = QMessageBox(
-            QMessageBox.Icon.Information if ok
-            else QMessageBox.Icon.Warning,
-            "Touch precision check", report)
-        box.exec()
-        app.quit()
-
-    run_touch_check(app, done)
-    return app.exec()
-
-
 def install_excepthook(app: QApplication) -> None:
     """Never show the user a raw traceback — log it, dialog a summary."""
 
@@ -118,8 +90,6 @@ def install_excepthook(app: QApplication) -> None:
 
 
 def main() -> int:
-    if "--touch-check" in sys.argv:
-        return run_touch_check_mode()
     smoke = "--smoke" in sys.argv
     if smoke:
         sys.argv = [a for a in sys.argv if a != "--smoke"]

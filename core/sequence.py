@@ -133,7 +133,6 @@ class SequenceCallbacks:
     on_progress: Callable[[int, int], None] = lambda done, total: None
     on_finished: Callable[[bool, str], None] = lambda aborted, msg: None
     on_timing: Callable[[float, float], None] = lambda avg, mx: None
-    on_debug: Callable[[str], None] = lambda line: None
 
 
 @dataclass
@@ -195,12 +194,6 @@ class SequenceEngine:
         step_events = [adapt_events(m.events, m.screen,
                                     self.force_abs_mouse)
                        for _, m in self.steps]
-        from .playback.engine import replay_debug_summary
-        for (step, m), adapted in zip(self.steps, step_events):
-            dbg = replay_debug_summary(m.events, adapted, m.screen,
-                                       self.force_abs_mouse)
-            log.info("Sequence step %s debug: %s", step.recording, dbg)
-            cb.on_debug(f"{step.recording}: {dbg}")
         try:
             with TimerResolution(1):
                 pass_no = 0

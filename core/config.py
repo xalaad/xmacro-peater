@@ -89,23 +89,46 @@ class AppConfig(BaseModel):
     log_enabled: bool = True  # Activity 'Log' master toggle, persisted
     log_motion: bool = True   # Activity 'Motion' toggle, persisted
     # Touch mode: record absolute taps/drags/swipes and replay them as
-    # genuine Windows touch input (instead of relative mouse deltas)
+    # genuine Windows touch input (instead of relative mouse deltas).
+    # The effective default follows the HARDWARE — see load_config():
+    # ON for touchscreens, and forced off on machines without one.
     touch_mode: bool = False
 
 
+def has_touchscreen() -> bool:
+    """True when this machine has a touch digitizer."""
+    try:
+        from .playback.touch import touch_device_present
+        return touch_device_present()
+    except Exception:  # noqa: BLE001 — never block startup
+        return False
+
+
 def load_config(path: str | Path = CONFIG_PATH) -> AppConfig:
-    """Load config; fall back to defaults (and log) on missing/invalid file."""
+    """Load config; fall back to defaults (and log) on missing/invalid file.
+
+    Touch mode is hardware-driven: ON by default on a touchscreen, and
+    always off without one (so a config copied from a touch device does
+    not enable a mode this machine cannot use)."""
     path = Path(path)
+    touch = has_touchscreen()
     if not path.exists():
         cfg = AppConfig()
+        cfg.touch_mode = touch
         save_config(cfg, path)
         return cfg
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return AppConfig.model_validate(data)
+        cfg = AppConfig.model_validate(data)
     except (OSError, json.JSONDecodeError, ValidationError) as e:
         log.warning("Config %s invalid (%s); using defaults", path, e)
-        return AppConfig()
+        cfg = AppConfig()
+        cfg.touch_mode = touch
+        return cfg
+    if not touch and cfg.touch_mode:
+        cfg.touch_mode = False
+        save_config(cfg, path)
+    return cfg
 
 
 def save_config(cfg: AppConfig, path: str | Path = CONFIG_PATH) -> None:

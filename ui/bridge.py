@@ -23,7 +23,6 @@ class PlaybackBridge(QObject):
     event_played = Signal(object)  # MacroEvent
     finished = Signal(bool, str)
     timing = Signal(float, float)
-    debug = Signal(str)
 
     def callbacks(self) -> PlaybackCallbacks:
         return PlaybackCallbacks(
@@ -32,7 +31,6 @@ class PlaybackBridge(QObject):
             on_event=self.event_played.emit,
             on_finished=self.finished.emit,
             on_timing=self.timing.emit,
-            on_debug=self.debug.emit,
         )
 
 
@@ -42,7 +40,6 @@ class SequenceBridge(QObject):
     event_played = Signal(object)  # MacroEvent
     finished = Signal(bool, str)
     timing = Signal(float, float)
-    debug = Signal(str)
 
     def callbacks(self) -> SequenceCallbacks:
         return SequenceCallbacks(
@@ -51,7 +48,6 @@ class SequenceBridge(QObject):
             on_event=self.event_played.emit,
             on_finished=self.finished.emit,
             on_timing=self.timing.emit,
-            on_debug=self.debug.emit,
         )
 
 

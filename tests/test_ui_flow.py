@@ -476,3 +476,17 @@ def test_record_blocked_during_simulation(window):
         assert win.recorder is None or not win.recorder.is_recording
     finally:
         win._simulating = False
+
+
+def test_reset_restores_hardware_touch_default(app, monkeypatch):
+    """Reset must set touch mode from the DEVICE, not the static
+    default — otherwise a touchscreen user resets into a disabled mode."""
+    import core.config as cfg_mod
+    from core.config import AppConfig
+    monkeypatch.setattr(sp_mod, "confirm", lambda *a, **k: True)
+    monkeypatch.setattr(cfg_mod, "has_touchscreen", lambda: True)
+    cfg = AppConfig()
+    cfg.touch_mode = False
+    dlg = SettingsDialog(cfg)
+    dlg._reset_defaults()
+    assert cfg.touch_mode is True

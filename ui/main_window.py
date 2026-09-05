@@ -270,14 +270,12 @@ class MainWindow(QMainWindow):
         self.pb_bridge.event_played.connect(self._on_played)
         self.pb_bridge.finished.connect(self._on_playback_finished)
         self.pb_bridge.timing.connect(self._on_playback_timing)
-        self.pb_bridge.debug.connect(self._on_engine_debug)
         self.seq_bridge = SequenceBridge(self)
         self.seq_bridge.pass_started.connect(self._on_pass_started)
         self.seq_bridge.step_started.connect(self._on_step_started)
         self.seq_bridge.event_played.connect(self._on_played)
         self.seq_bridge.finished.connect(self._on_playback_finished)
         self.seq_bridge.timing.connect(self._on_playback_timing)
-        self.seq_bridge.debug.connect(self._on_engine_debug)
         self.hk_bridge = HotkeyBridge(self)
         self.hk_bridge.record_toggle.connect(self.toggle_record)
         self.hk_bridge.play_last.connect(self.start_playback)
@@ -480,8 +478,9 @@ class MainWindow(QMainWindow):
         self.touch_toggle.toggled.connect(self._on_touch_toggled)
         lay.addWidget(self.touch_toggle)  # parent before setVisible —
         # visible=True on a parentless widget opens a top-level flash
-        self.touch_toggle.setVisible(
-            touch_device_present() or self.cfg.touch_mode)
+        # Hidden entirely on machines without a digitizer — the mode
+        # cannot do anything there
+        self.touch_toggle.setVisible(touch_device_present())
 
         # --- Playback plan: inputs appear/disappear per selected mode ---
         loop_row = QHBoxLayout()
@@ -1656,12 +1655,6 @@ class MainWindow(QMainWindow):
         self._overlay_event_line(ev, prefix="▶ ")
         self.feed_visual_event(ev)
 
-    def _on_engine_debug(self, line: str) -> None:
-        """Replay diagnostics: exactly which mode ran, what was adapted,
-        and per-run cursor drift — in the activity log and app.log."""
-        self.activity.add_line(f"[dbg] {line}",
-                               QColor(self.theme.text_dim))
-
     def _on_playback_timing(self, avg: float, mx: float) -> None:
         self.stats.setText(
             f"Playback timing: avg {avg * 1000:.2f}ms, max {mx * 1000:.2f}ms "
@@ -2137,8 +2130,9 @@ class MainWindow(QMainWindow):
         self.touch_toggle.blockSignals(True)
         self.touch_toggle.setChecked(self.cfg.touch_mode)
         self.touch_toggle.blockSignals(False)
-        self.touch_toggle.setVisible(
-            touch_device_present() or self.cfg.touch_mode)
+        # Hidden entirely on machines without a digitizer — the mode
+        # cannot do anything there
+        self.touch_toggle.setVisible(touch_device_present())
         if self.hotkeys is not None:
             self._bind_hotkeys()
 

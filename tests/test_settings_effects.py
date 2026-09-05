@@ -99,3 +99,32 @@ def test_overlay_hints_toggle(window):
     assert not window.overlay.hints_label.isVisibleTo(window.overlay)
     apply(window, ov_hints=True)
     assert window.overlay.hints_label.isVisibleTo(window.overlay)
+
+
+# ------------------------------------------------- hardware-driven touch
+def test_touch_mode_default_follows_the_hardware(tmp_path, monkeypatch):
+    """ON by default with a digitizer, off without one."""
+    import core.config as cfg_mod
+    for present in (True, False):
+        monkeypatch.setattr(cfg_mod, "has_touchscreen", lambda p=present: p)
+        path = tmp_path / f"cfg_{present}.json"
+        cfg = cfg_mod.load_config(path)
+        assert cfg.touch_mode is present
+
+
+def test_touch_mode_forced_off_without_a_digitizer(tmp_path, monkeypatch):
+    """A config copied from a touch device must not enable a mode this
+    machine cannot use."""
+    import json
+
+    import core.config as cfg_mod
+    monkeypatch.setattr(cfg_mod, "has_touchscreen", lambda: True)
+    path = tmp_path / "cfg.json"
+    cfg = cfg_mod.load_config(path)
+    assert cfg.touch_mode is True
+
+    monkeypatch.setattr(cfg_mod, "has_touchscreen", lambda: False)
+    cfg2 = cfg_mod.load_config(path)
+    assert cfg2.touch_mode is False
+    # ...and the correction is persisted, not just in memory
+    assert json.loads(path.read_text())["touch_mode"] is False

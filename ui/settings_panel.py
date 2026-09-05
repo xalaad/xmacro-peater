@@ -218,6 +218,9 @@ class SettingsDialog(FramelessDialog):
         self.touch_mode = QCheckBox("Touch mode")
         self.touch_mode.setChecked(cfg.touch_mode)
         self.touch_mode.toggled.connect(self._apply)
+        # Only meaningful with a digitizer; hidden without one
+        from core.playback.touch import touch_device_present
+        self.touch_mode.setVisible(touch_device_present())
         self._check_row(
             s, self.touch_mode,
             "Record taps, drags and swipes as absolute on-screen gestures "
@@ -384,6 +387,9 @@ class SettingsDialog(FramelessDialog):
         for name in AppConfig.model_fields:
             setattr(self.cfg, name, getattr(defaults, name))
         self.cfg.branding = keep_branding
+        # Touch mode's default is the hardware, not a constant
+        from core.config import has_touchscreen
+        self.cfg.touch_mode = has_touchscreen()
         save_config(self.cfg)
         self._sync_widgets()
         self.settings_changed.emit()
