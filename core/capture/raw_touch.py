@@ -49,9 +49,6 @@ GESTURE_GAP = 0.12   # recorder: quiet seconds that end a contact
 MOVE_COALESCE = 0.008
 STUCK_TIMEOUT = 2.0   # safety net if a lift report is ever lost
 
-# RAWINPUT layout (x64): 24-byte header, then RAWHID
-_HID_OFFSET = 24
-
 
 class _DigitizerHub:
     """Process-wide owner of the digitizer registration. Subscribers get
@@ -106,7 +103,12 @@ class _DigitizerHub:
         if sys.platform != "win32":
             return False
         if self._thread is not None:
-            return not self._failed
+            if self._thread.is_alive():
+                return not self._failed and self._hwnd is not None
+            # Previous attempt died (failed registration, closed loop) —
+            # a stale handle here must not block retries forever.
+            self._thread = None
+            self._hwnd = None
         self._failed = False
         self._ready.clear()
         self._thread = threading.Thread(
@@ -195,7 +197,6 @@ class _DigitizerHub:
         rm._user32.GetRawInputData(
             lparam, rm.RID_INPUT, None, ctypes.byref(size),
             ctypes.sizeof(rm.RAWINPUTHEADER))
-        pos = None
         if size.value:
             buf = ctypes.create_string_buffer(size.value)
             got = rm._user32.GetRawInputData(
@@ -205,12 +206,13 @@ class _DigitizerHub:
                 header = rm.RAWINPUTHEADER.from_buffer_copy(
                     buf[:ctypes.sizeof(rm.RAWINPUTHEADER)])
                 raw = buf.raw
-                if len(raw) >= _HID_OFFSET + 8:
+                hid_off = ctypes.sizeof(rm.RAWINPUTHEADER)
+                if len(raw) >= hid_off + 8:
                     size_hid = int.from_bytes(
-                        raw[_HID_OFFSET:_HID_OFFSET + 4], "little")
+                        raw[hid_off:hid_off + 4], "little")
                     count = int.from_bytes(
-                        raw[_HID_OFFSET + 4:_HID_OFFSET + 8], "little")
-                    start = _HID_OFFSET + 8
+                        raw[hid_off + 4:hid_off + 8], "little")
+                    start = hid_off + 8
                     if size_hid and count:
                         # Last report in the packet = newest position
                         off = start + size_hid * (count - 1)
@@ -220,11 +222,10 @@ class _DigitizerHub:
                             x, y, tip = parsed
                             self._dispatch(x, y, tip)
                             return
-        if True:
-            # Fallback: the cursor (accurate only for promoted touch)
-            pt = wintypes.POINT()
-            ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
-            self._dispatch(pt.x, pt.y, None)
+        # Fallback: the cursor (accurate only for promoted touch)
+        pt = wintypes.POINT()
+        ctypes.windll.user32.GetCursorPos(ctypes.byref(pt))
+        self._dispatch(pt.x, pt.y, None)
 
 
 HUB = _DigitizerHub()
@@ -337,9 +338,13 @@ class RawTouchWatcher:
         if self._gap_thread is not None:
             self._gap_thread.join(timeout=1.0)
             self._gap_thread = None
-        # A live contact at stop: close it so recordings never end with
-        # a hanging touch-down
-        self.check_gap(self._last_report + self.quiet_gap + 1.0)
+        # A live contact at stop: close it unconditionally so recordings
+        # never end with a hanging touch-down (check_gap's timing rules
+        # don't apply — the watcher is going away NOW)
+        if self._contact:
+            self._contact = False
+            if self.on_up is not None:
+                self.on_up(*self._last_pos)
 
     def _gap_loop(self) -> None:
         while not self._stop.is_set():

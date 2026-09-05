@@ -128,6 +128,11 @@ class MacroRecorder:
     def stop(self) -> MacroFile:
         if not self._recording:
             return MacroFile(events=[], poll_hz=self.poll_hz)
+        # Close any live touch gesture BEFORE the flag flips: the
+        # watcher's synthetic touch-up must be accepted into the take,
+        # or a finger still down at Ctrl+F9 replays as a stuck contact.
+        if self._kbm is not None:
+            self._kbm.close_gestures()
         self._recording = False
         if self._raw_mouse is not None:
             self._raw_mouse.stop()

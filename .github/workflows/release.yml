@@ -41,6 +41,14 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install pyinstaller
+      - name: Verify tag matches APP_VERSION
+        shell: pwsh
+        run: |
+          # core/config.py is the single source of truth for the version;
+          # a tag that disagrees with it would ship a mislabeled build.
+          $app = python -c "from core.config import APP_VERSION; print(APP_VERSION)"
+          $tag = "${{ github.ref_name }}".TrimStart('v')
+          if ($app -ne $tag) { throw "Tag v$tag != APP_VERSION $app (core/config.py)" }
       - name: Run core tests
         run: >
           pytest tests/test_deadzone.py tests/test_events.py

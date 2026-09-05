@@ -11,7 +11,10 @@ from pydantic import BaseModel, Field, ValidationError
 
 log = logging.getLogger(__name__)
 
-APP_VERSION = "1.1"
+# Single source of truth for the app version. The release workflow
+# checks the pushed tag against this value, and the installer gets it
+# via ISCC /DAppVersion — bump it here and tag v<this> to release.
+APP_VERSION = "1.1.0"
 
 if getattr(sys, "frozen", False):
     # PyInstaller: config/recordings/logs live NEXT TO THE EXE so users

@@ -59,7 +59,9 @@ if sys.platform == "win32":
             ("pressure", ctypes.c_uint32),
         ]
 
-    _user32 = ctypes.windll.user32
+    # use_last_error=True: without it ctypes.get_last_error() reads an
+    # unpopulated stash and injection failures always log winerr 0
+    _user32 = ctypes.WinDLL("user32", use_last_error=True)
     _HAS_API = hasattr(_user32, "InjectTouchInput")
 else:  # pragma: no cover
     _HAS_API = False

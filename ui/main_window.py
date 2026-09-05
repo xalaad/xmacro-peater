@@ -1040,6 +1040,11 @@ class MainWindow(QMainWindow):
         """Slide the docked window between two poses. Animates POS only
         (same size both ends): no per-frame resize/relayout, and the
         explicit start pose means the first frame is never mid-flight."""
+        # A rapid re-toggle must not leave two animations fighting over
+        # pos — stop (and thereby delete) the in-flight one first
+        prev = getattr(self, "_drawer_anim", None)
+        if prev is not None:
+            prev.stop()
         anim = QPropertyAnimation(self, b"pos", self)
         anim.setDuration(260)
         anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
@@ -1520,6 +1525,10 @@ class MainWindow(QMainWindow):
     def _arm_playback(self, what: str) -> float:
         """Shared arm-up for both engines: state, buttons, sound, and the
         countdown/schedule log line. Returns the start delay."""
+        # Generation token: each arm invalidates any earlier scheduled
+        # launch (play -> stop -> play within the start delay must not
+        # let the STALE singleShot start a second, orphaned engine)
+        self._launch_gen = getattr(self, "_launch_gen", 0) + 1
         self._playback_active = True
         self._playback_state = neutral_state()
         self._run_info = ""
@@ -1564,9 +1573,11 @@ class MainWindow(QMainWindow):
         mode = self.loop_mode.currentIndex()
         loop_count = {0: 1, 1: self.loop_count.value(), 2: INFINITE}[mode]
         countdown = self._arm_playback(path.name)
+        gen = self._launch_gen
 
         def launch():
-            if not self._playback_active:  # aborted during countdown
+            # aborted during countdown, or superseded by a newer arm
+            if not self._playback_active or gen != self._launch_gen:
                 return
             self.engine = PlaybackEngine(
                 macro,
@@ -1605,9 +1616,11 @@ class MainWindow(QMainWindow):
         loop_count = {0: 1, 1: self.loop_count.value(), 2: INFINITE}[mode]
         countdown = self._arm_playback(
             f"sequence {name} ({len(steps)} steps)")
+        gen = self._launch_gen
 
         def launch():
-            if not self._playback_active:  # aborted during countdown
+            # aborted during countdown, or superseded by a newer arm
+            if not self._playback_active or gen != self._launch_gen:
                 return
             self.engine = SequenceEngine(
                 steps,
@@ -2339,6 +2352,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         QApplication.instance().removeEventFilter(self)
         self._tick_timer.stop()  # no ticks during teardown
+        # Kill anything still scheduled: a pending playback launch or an
+        # armed record countdown must not run injection code mid-teardown
+        self._playback_active = False
+        self._launch_gen = getattr(self, "_launch_gen", 0) + 1
+        self._rec_arming = False
+        self.rec_countdown.stop()
         settings = QSettings("MacroSuite", "InputMacroSuite")
         # Docked: remember the pre-dock geometry, not the glued one, so
         # undocking after a restart lands the window somewhere sane

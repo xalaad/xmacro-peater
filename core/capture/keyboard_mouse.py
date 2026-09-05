@@ -123,6 +123,15 @@ class KeyboardMouseCapture:
             pass
         return True  # never suppress
 
+    def close_gestures(self) -> None:
+        """Stop the digitizer watcher while events still record: its
+        stop() emits the closing touch-up for a finger that is mid-
+        gesture, and that up must land INSIDE the take — the recorder
+        calls this before it stops accepting events."""
+        if getattr(self, "_raw_gestures", None) is not None:
+            self._raw_gestures.stop()
+            self._raw_gestures = None
+
     def stop(self) -> None:
         if self._kb_listener is not None:
             self._kb_listener.stop()
@@ -130,9 +139,7 @@ class KeyboardMouseCapture:
         if self._mouse_listener is not None:
             self._mouse_listener.stop()
             self._mouse_listener = None
-        if getattr(self, "_raw_gestures", None) is not None:
-            self._raw_gestures.stop()
-            self._raw_gestures = None
+        self.close_gestures()
 
     # --- callbacks -------------------------------------------------------
     def _on_press(self, key) -> None:

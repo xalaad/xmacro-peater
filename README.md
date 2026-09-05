@@ -205,7 +205,7 @@ needed, one click.
 app detects that on first controller playback and offers its bundled
 installer (keyboard/mouse macros never need it).
 
-**Option B — from source** (Python 3.11+):
+**Option C — from source** (Python 3.11+):
 
 ```powershell
 git clone https://github.com/xalaad/xmacro-peater.git
@@ -219,6 +219,10 @@ python -m venv .venv
 > accept it; that's what creates the virtual controller. `pygame` is
 > optional: without it the app still fully works for Xbox pads and
 > keyboard/mouse; PlayStation/generic options gray out with a tooltip.
+
+> **Upgrading from v1.0?** Your recordings and settings are migrated
+> automatically on first launch (one time only — anything you delete
+> afterwards stays deleted).
 
 ## 🚀 Quick start
 
