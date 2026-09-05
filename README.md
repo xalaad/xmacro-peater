@@ -230,7 +230,7 @@ python -m venv .venv
 > clean fallback and mapped in `core/platform.py`. Keyboard/mouse
 > macros are the realistic first target on other platforms; virtual
 > controller output (ViGEmBus) and touch injection are Windows-only
-> technologies.
+> technologies. The full porting plan lives in [ROADMAP.md](ROADMAP.md).
 
 ## 🚀 Quick start
 
@@ -429,6 +429,9 @@ Ideas, edits, and fixes are welcome:
 
 Please run `pytest tests` before submitting, and keep `core/` free of Qt
 imports.
+
+Curious what's planned (multi-platform, editor features, signing)?
+See **[ROADMAP.md](ROADMAP.md)**.
 
 ## ⚠️ Fair use
 

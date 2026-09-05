@@ -17,9 +17,47 @@ a = Analysis(
     ],
     hiddenimports=["pynput.keyboard._win32", "pynput.mouse._win32",
                    "vgamepad"],
-    excludes=["tkinter", "pytest"],
+    excludes=["tkinter", "pytest",
+              # Qt modules the app never uses — Widgets-only UI
+              "PySide6.QtNetwork", "PySide6.QtQml", "PySide6.QtQuick",
+              "PySide6.QtPdf", "PySide6.QtOpenGL",
+              "PySide6.QtOpenGLWidgets"],
     noarchive=False,
 )
+
+# PyInstaller bundles whatever PySide6 ships, not what we import — the
+# QML/Quick/Pdf/Network stacks, the 20MB software-OpenGL rasterizer and
+# 96 translation files ride along for nothing. Pruning them cuts the
+# app from ~136MB to ~85MB with zero feature loss. KEEP: Qt6Svg +
+# qsvgicon (all icons are SVG), qico (window icon), qwindows
+# (the platform), qoffscreen (--smoke), styles, MSVC runtimes.
+_PRUNE = (
+    "opengl32sw",                     # software GL: app never uses OpenGL
+    "qt6quick", "qt6qml",             # QML stack (matches Qt6Qml* too)
+    "qtquick", "qtqml",
+    "qt6pdf", "imageformats\\qpdf",   # PDF rendering
+    "qt6opengl",
+    "qt6network", "qtnetwork",        # no networking in the app
+    "networkinformation\\", "tls\\",
+    "qt6virtualkeyboard", "qtvirtualkeyboardplugin",
+    "platforms\\qdirect2d",           # alt platform; qwindows is the one
+    "generic\\qtuiotouchplugin",      # TUIO-over-UDP touch, not Windows touch
+    "translations\\",                 # English-only UI
+    # image formats never loaded (icons are svg/ico)
+    "imageformats\\qgif", "imageformats\\qicns", "imageformats\\qjpeg",
+    "imageformats\\qtga", "imageformats\\qtiff", "imageformats\\qwbmp",
+    "imageformats\\qwebp",
+)
+
+
+def _keep(entry):
+    name = entry[0].lower().replace("/", "\\")
+    return not any(p in name for p in _PRUNE)
+
+
+a.binaries = [b for b in a.binaries if _keep(b)]
+a.datas = [d for d in a.datas if _keep(d)]
+
 pyz = PYZ(a.pure)
 
 # One-DIR on purpose: one-file bootloaders are the most heuristic-flagged
