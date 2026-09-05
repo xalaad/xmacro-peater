@@ -224,6 +224,14 @@ python -m venv .venv
 > automatically on first launch (one time only — anything you delete
 > afterwards stays deleted).
 
+> **macOS / Linux?** Windows is the supported platform today, but the
+> codebase is structured for porting: every OS-specific capability
+> (raw input, touch, virtual pad, timer precision…) is isolated with a
+> clean fallback and mapped in `core/platform.py`. Keyboard/mouse
+> macros are the realistic first target on other platforms; virtual
+> controller output (ViGEmBus) and touch injection are Windows-only
+> technologies.
+
 ## 🚀 Quick start
 
 1. Pick your controller **scheme** on the Controller tab (a green dot

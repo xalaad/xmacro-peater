@@ -97,6 +97,8 @@ def main() -> int:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
     setup_logging()
+    from core.platform import capability_summary
+    log.info("Platform capabilities: %s", capability_summary())
     migrate_legacy_data()
     cfg = load_config()
     theme = get_theme()

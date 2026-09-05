@@ -67,14 +67,10 @@ else:  # pragma: no cover
     _HAS_API = False
 
 
-def virtual_screen_rect() -> dict | None:
-    """The virtual desktop's bounding rect {x, y, w, h} — recorded into
-    every take so absolute touch coordinates can be rescaled when the
-    take replays on a different screen size."""
-    if sys.platform != "win32":  # pragma: no cover
-        return None
-    gm = ctypes.windll.user32.GetSystemMetrics
-    return {"x": gm(76), "y": gm(77), "w": gm(78), "h": gm(79)}
+# Implementations live in the OS-neutral core.screen; re-imported here
+# (not just re-exported) so existing imports AND test monkeypatching of
+# this module's attributes keep working.
+from ..screen import touch_device_present, virtual_screen_rect  # noqa: E402,F401
 
 
 def adapt_touch_events(events, recorded: dict | None):
@@ -138,14 +134,6 @@ def _rescale(events, recorded, cur, rx, ry, TOUCH, MacroEvent):
         else:
             out.append(ev)
     return out
-
-
-def touch_device_present() -> bool:
-    """True when the machine has a touch digitizer (touchscreen)."""
-    if sys.platform != "win32":
-        return False
-    SM_MAXIMUMTOUCHES = 95
-    return ctypes.windll.user32.GetSystemMetrics(SM_MAXIMUMTOUCHES) > 0
 
 
 class TouchInjector:

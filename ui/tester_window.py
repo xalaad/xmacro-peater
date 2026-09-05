@@ -240,7 +240,7 @@ class TesterWindow(QWidget):
         wanted = "■  Stop Rec" if recording else "●  Record"
         if self.rec_btn.text() != wanted:
             self.rec_btn.setText(wanted)
-        playing = self.host._playback_active
+        playing = self.host.is_playing()
         wanted = "■  Stop Play" if playing else "▶  Play"
         if self.play_btn.text() != wanted:
             self.play_btn.setText(wanted)
@@ -257,24 +257,22 @@ class TesterWindow(QWidget):
         self._stop_preset()
         # A temp take in progress is finished (and saved to test_take.json)
         # rather than left recording invisibly.
-        if (self.host.recorder is not None
-                and self.host.recorder.is_recording
-                and getattr(self.host, "_temp_rec", False)):
+        if self.host.is_temp_recording():
             self.host.toggle_record()
         super().closeEvent(event)
 
     def _toggle_record(self) -> None:
         # A visual preset owns the sim flag which blocks recording — stop
         # it first so Record always responds.
-        if self.host._simulating:
+        if self.host.is_simulating():
             self._stop_preset()
         self.host.toggle_record(temp=True)
 
     def _toggle_play(self) -> None:
-        if self.host._playback_active:
+        if self.host.is_playing():
             self.host.abort_playback()
             return
-        if self.host._simulating:
+        if self.host.is_simulating():
             self._stop_preset()
         self.host.start_playback()
 

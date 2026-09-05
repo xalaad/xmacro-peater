@@ -108,6 +108,7 @@ from .theme import Theme
 from .widgets.duration_picker import format_duration
 from .widgets.recording_list import device_badge
 from .widgets.status_pill import IDLE, PLAYING, RECORDING
+from .persist import app_settings
 
 
 class StateDot(QWidget):
@@ -475,13 +476,13 @@ class MiniOverlay(QWidget):
     def mouseReleaseEvent(self, event) -> None:
         if self._drag_offset is not None:
             self._drag_offset = None
-            QSettings("MacroSuite", "InputMacroSuite").setValue(
+            app_settings().setValue(
                 "overlay_pos", self.pos()
             )
 
     # Position ----------------------------------------------------------
     def _restore_position(self) -> None:
-        pos = QSettings("MacroSuite", "InputMacroSuite").value("overlay_pos")
+        pos = app_settings().value("overlay_pos")
         screen = QGuiApplication.primaryScreen().availableGeometry()
         if pos is not None and screen.contains(pos):
             self.move(pos)

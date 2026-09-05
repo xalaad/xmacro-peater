@@ -59,6 +59,10 @@ class _DigitizerHub:
 
     def __init__(self):
         self._lock = threading.Lock()
+        # Serializes start/stop transitions: a first-subscriber start
+        # racing a last-subscriber stop from another thread must never
+        # interleave thread spawn with join/window teardown
+        self._life = threading.Lock()
         self._subs: list[Callable[[int, int, object], None]] = []
         self._hwnd = None
         self._ready = threading.Event()
@@ -74,23 +78,25 @@ class _DigitizerHub:
 
     # -------------------------------------------------------- subscriptions
     def subscribe(self, fn: Callable[[int, int, object], None]) -> bool:
-        with self._lock:
-            first = not self._subs
-            self._subs.append(fn)
-        if first and not self._start():
+        with self._life:
+            with self._lock:
+                first = not self._subs
+                self._subs.append(fn)
+            if first and not self._start():
+                with self._lock:
+                    if fn in self._subs:
+                        self._subs.remove(fn)
+                return False
+            return not self._failed
+
+    def unsubscribe(self, fn: Callable[[int, int, object], None]) -> None:
+        with self._life:
             with self._lock:
                 if fn in self._subs:
                     self._subs.remove(fn)
-            return False
-        return not self._failed
-
-    def unsubscribe(self, fn: Callable[[int, int, object], None]) -> None:
-        with self._lock:
-            if fn in self._subs:
-                self._subs.remove(fn)
-            empty = not self._subs
-        if empty:
-            self._stop()
+                empty = not self._subs
+            if empty:
+                self._stop()
 
     def _dispatch(self, x: int, y: int, tip: bool | None) -> None:
         with self._lock:
@@ -265,13 +271,6 @@ class RawTouchWatcher:
         self._subscribed = False
 
     # ---------------------------------------------------- pure state machine
-    def note_report(self, now: float) -> bool:
-        """True when a report starts a NEW contact after a quiet gap."""
-        fresh = (now - self._last_report) > self.quiet_gap
-        self._last_report = now
-        self._prev_report = now
-        return fresh
-
     def handle_report(self, now: float, x: int, y: int,
                       tip: bool | None = None) -> None:
         """One digitizer report at contact position (x, y).

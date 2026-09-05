@@ -1,10 +1,10 @@
 ; XMacro-peater branded installer (Inno Setup 6)
-; Build:  ISCC.exe /DAppVersion=1.1.0 installer\xmacro.iss
+; Build:  ISCC.exe /DAppVersion=1.2.0 installer\xmacro.iss
 ; Expects dist\XMacro-peater.exe (PyInstaller output) and
 ; installer\ViGEmBusSetup_x64.msi (staged by the release workflow).
 
 #ifndef AppVersion
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 #endif
 
 [Setup]

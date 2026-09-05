@@ -267,11 +267,14 @@ def test_raw_touch_burst_coalescing():
     """Digitizer reports stream during a contact — only the first after a
     quiet gap counts as a new tap."""
     import ui.live_monitor as lm
-    w = lm.RawTouchWatcher(quiet_gap=0.35)
-    assert w.note_report(10.0) is True       # first contact
-    assert w.note_report(10.05) is False     # same contact streaming
-    assert w.note_report(10.30) is False
-    assert w.note_report(11.0) is True       # new contact after the gap
+    taps = []
+    w = lm.RawTouchWatcher(on_tap=lambda x, y: taps.append((x, y)),
+                           quiet_gap=0.35)
+    w.handle_report(10.0, 1, 1)      # first contact -> tap
+    w.handle_report(10.05, 2, 2)     # same contact streaming
+    w.handle_report(10.30, 3, 3)
+    w.handle_report(11.0, 4, 4)      # new contact after the gap -> tap
+    assert taps == [(1, 1), (4, 4)]
 
 
 def test_raw_touch_gesture_stream():

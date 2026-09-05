@@ -15,6 +15,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import sys
+import time
 from ctypes import wintypes
 
 log = logging.getLogger(__name__)
@@ -144,7 +145,9 @@ def clear_cache() -> None:
     after unplug/replug — the hub calls this on WM_INPUT_DEVICE_CHANGE
     so a NEW digitizer (dock, external touch display) never gets scaled
     with the OLD device's logical ranges."""
+    global _metrics
     _cache.clear()
+    _metrics = (0.0, _metrics[1])  # device change often means new screens
 
 
 def _build_map(hdevice) -> DeviceMap | None:
@@ -213,6 +216,24 @@ def _read_tip(dm, report: bytes) -> bool | None:
         return None
 
 
+# Virtual-screen rect for scaling, refreshed at most once a second:
+# digitizers report at 250Hz+ and four GetSystemMetrics syscalls per
+# report is pure waste — display changes are rare and a 1s-stale rect
+# for a few reports right after one is harmless.
+_metrics: tuple[float, tuple[int, int, int, int]] = (0.0, (0, 0, 1, 1))
+
+
+def _screen_metrics() -> tuple[int, int, int, int]:
+    global _metrics
+    stamp, vals = _metrics
+    now = time.monotonic()
+    if now - stamp > 1.0:
+        gm = _user32.GetSystemMetrics
+        vals = (gm(76), gm(77), gm(78) or 1, gm(79) or 1)
+        _metrics = (now, vals)
+    return vals
+
+
 def parse(hdevice, report: bytes) -> tuple[int, int, bool | None] | None:
     """(x, y, tip_down) in SCREEN pixels; tip_down None when unknown."""
     if sys.platform != "win32" or not report:
@@ -243,10 +264,7 @@ def parse(hdevice, report: bytes) -> tuple[int, int, bool | None] | None:
             return None
     except Exception:  # noqa: BLE001
         return None
-    sw = _user32.GetSystemMetrics(78) or 1
-    sh = _user32.GetSystemMetrics(79) or 1
-    ox = _user32.GetSystemMetrics(76)
-    oy = _user32.GetSystemMetrics(77)
+    ox, oy, sw, sh = _screen_metrics()
     x = ox + (vx.value - dm.x_min) * sw / (dm.x_max - dm.x_min)
     y = oy + (vy.value - dm.y_min) * sh / (dm.y_max - dm.y_min)
     return int(round(x)), int(round(y)), _read_tip(dm, report)

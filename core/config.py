@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 # Single source of truth for the app version. The release workflow
 # checks the pushed tag against this value, and the installer gets it
 # via ISCC /DAppVersion — bump it here and tag v<this> to release.
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 
 if getattr(sys, "frozen", False):
     # PyInstaller: config/recordings/logs live NEXT TO THE EXE so users
@@ -118,7 +118,12 @@ def load_config(path: str | Path = CONFIG_PATH) -> AppConfig:
     if not path.exists():
         cfg = AppConfig()
         cfg.touch_mode = touch
-        save_config(cfg, path)
+        try:
+            save_config(cfg, path)
+        except OSError as e:
+            # Read-only install dir (portable copy in a protected
+            # location): run on defaults instead of dying at startup
+            log.warning("Can't write first-run config %s: %s", path, e)
         return cfg
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -130,7 +135,10 @@ def load_config(path: str | Path = CONFIG_PATH) -> AppConfig:
         return cfg
     if not touch and cfg.touch_mode:
         cfg.touch_mode = False
-        save_config(cfg, path)
+        try:
+            save_config(cfg, path)
+        except OSError as e:
+            log.warning("Can't update config %s: %s", path, e)
     return cfg
 
 

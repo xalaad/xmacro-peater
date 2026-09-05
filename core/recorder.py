@@ -18,7 +18,7 @@ from .capture.raw_mouse import RawMouseCapture
 from .controllers.base import ControllerBackend
 from .events import MacroEvent, MacroFile
 from .hotkeys import trim_hotkey_artifacts
-from .playback.touch import virtual_screen_rect
+from .screen import virtual_screen_rect
 from .timing import TimerResolution
 
 log = logging.getLogger(__name__)
